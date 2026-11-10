@@ -1,45 +1,586 @@
-<!-- Robust Player Container with Fallback Overlay -->
-<div class="video-container" id="player-wrapper">
-  <div id="youtube-player"></div>
-  
-  <!-- Fallback UI (Hidden by Default) -->
-  <div id="player-fallback" class="hidden-fallback">
-    <p>This stream restricts inline embedding.</p>
-    <a id="external-link" href="#" target="_blank" rel="noopener">
-      Watch Directly on YouTube ↗
-    </a>
-  </div>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Broadcast Console — Live International Television</title>
+    <style>
+        :root {
+            --bg-primary: #0a0b0e;
+            --bg-surface: #12141c;
+            --bg-surface-hover: #1a1d28;
+            --border-color: #242938;
+            --text-main: #f0f2f5;
+            --text-muted: #8b93a7;
+            --accent: #d97706;
+            --accent-glow: rgba(217, 119, 6, 0.15);
+            --danger: #ef4444;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
 
-<script>
-  let player;
-  const currentVideoId = "YOUR_LIVE_VIDEO_ID"; // Replace with target ID
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-  function onYouTubeIframeAPIReady() {
-    player = new YT.Player('youtube-player', {
-      videoId: currentVideoId,
-      playerVars: {
-        'playsinline': 1,
-        'origin': window.location.origin
-      },
-      events: {
-        'onError': onPlayerError
-      }
-    });
-  }
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
 
-  function onPlayerError(event) {
-    // Error 101/150: Owner disallowed embedding
-    // Error 100: Video removed/not found
-    console.warn("YouTube Embed Error:", event.data);
-    
-    // Hide iframe, display fallback link
-    document.getElementById('youtube-player').style.display = 'none';
-    const fallback = document.getElementById('player-fallback');
-    const link = document.getElementById('external-link');
-    
-    link.href = `https://www.youtube.com/watch?v=${currentVideoId}`;
-    fallback.style.display = 'flex';
-  }
-</script>
-<script src="https://www.youtube.com/iframe_api"></script>
+        /* Header / OSD Bar */
+        header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .brand h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .osd-indicator {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            background: rgba(217, 119, 6, 0.1);
+            color: var(--accent);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            border: 1px solid rgba(217, 119, 6, 0.3);
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .header-stats span strong {
+            color: var(--text-main);
+            font-family: var(--font-mono);
+        }
+
+        /* Main Layout Grid */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            height: calc(100vh - 65px);
+            overflow: hidden;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+                height: auto;
+                overflow-y: auto;
+            }
+        }
+
+        /* Player Section */
+        .viewer-section {
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        .player-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            max-height: 70vh;
+        }
+
+        #youtube-player {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Fallback Overlay when embedding is blocked */
+        .player-fallback {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-surface);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 2rem;
+            z-index: 10;
+        }
+
+        .player-fallback h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .player-fallback p {
+            color: var(--text-muted);
+            max-width: 400px;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .external-btn {
+            background: var(--accent);
+            color: #000;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: opacity 0.2s;
+        }
+
+        .external-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Channel Info Panel */
+        .channel-info-panel {
+            padding: 2rem;
+            background: var(--bg-primary);
+            flex: 1;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .channel-meta-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .channel-badge {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+        }
+
+        .channel-title-group h2 {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .channel-location {
+            font-size: 0.95rem;
+            color: var(--accent);
+            font-family: var(--font-mono);
+        }
+
+        .channel-description {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-top: 1rem;
+            max-width: 800px;
+        }
+
+        /* Sidebar / Guide Section */
+        .sidebar {
+            background: var(--bg-surface);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .discovery-modes {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .mode-btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .mode-btn:hover, .mode-btn.active {
+            border-color: var(--accent);
+            color: var(--text-main);
+            background: var(--accent-glow);
+        }
+
+        .channel-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .channel-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.85rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            border: 1px solid transparent;
+            margin-bottom: 0.25rem;
+        }
+
+        .channel-item:hover {
+            background: var(--bg-surface-hover);
+        }
+
+        .channel-item.active {
+            background: var(--bg-surface-hover);
+            border-color: var(--accent);
+        }
+
+        .ch-num {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            width: 24px;
+        }
+
+        .ch-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ch-name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ch-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.1rem;
+        }
+
+        /* Remote Control Bar */
+        .remote-bar {
+            padding: 1rem 1.25rem;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .remote-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .remote-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .remote-btn:hover {
+            background: var(--bg-surface-hover);
+            border-color: var(--text-muted);
+        }
+
+        .loading-state {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <h1>Global Broadcast Console</h1>
+            <span class="osd-indicator" id="osd-status">STANDBY</span>
+        </div>
+        <div class="header-stats">
+            <span>Catalog: <strong id="stat-total">0</strong> channels</span>
+            <span>Local Time: <strong id="clock-display">--:--</strong></span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Viewer Section -->
+        <section class="viewer-section">
+            <div class="player-container">
+                <div id="youtube-player"></div>
+                <div id="player-fallback" class="player-fallback">
+                    <h3>Embedding Restricted by Broadcaster</h3>
+                    <p id="fallback-msg">This network restricts third-party playback. Open directly on YouTube to watch live.</p>
+                    <a id="external-watch-btn" class="external-btn" href="#" target="_blank" rel="noopener">
+                        Open Official Stream ↗
+                    </a>
+                </div>
+            </div>
+
+            <div class="channel-info-panel">
+                <div class="channel-meta-top">
+                    <div>
+                        <span class="channel-badge" id="info-category">Loading...</span>
+                        <h2 id="info-name">Initializing Console...</h2>
+                        <div class="channel-location" id="info-location">Please wait while catalog loads</div>
+                    </div>
+                    <span class="channel-badge" id="info-broadcaster">---</span>
+                </div>
+                <p class="channel-description" id="info-desc">Fetching verified broadcast streams from channels.json...</p>
+            </div>
+        </section>
+
+        <!-- Sidebar Guide -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem;">Discovery Modes</div>
+                <div class="discovery-modes">
+                    <button class="mode-btn active" onclick="filterChannels('all', this)">All Channels</button>
+                    <button class="mode-btn" onclick="filterChannels('News', this)">News Feeds</button>
+                    <button class="mode-btn" onclick="filterChannels('Culture', this)">Culture & Gen</button>
+                    <button class="mode-btn" onclick="tuneRandom(this)">Tune Random</button>
+                </div>
+            </div>
+
+            <div class="channel-list" id="channel-list-container">
+                <div class="loading-state">Loading catalog...</div>
+            </div>
+
+            <div class="remote-bar">
+                <div style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted);" id="remote-ch-display">CH --</div>
+                <div class="remote-controls">
+                    <button class="remote-btn" onclick="changeChannel(-1)">◀ CH PREV</button>
+                    <button class="remote-btn" onclick="changeChannel(1)">CH NEXT ▶</button>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        let channels = [];
+        let currentIndex = 0;
+        let player = null;
+        let apiReady = false;
+        let currentFilter = 'all';
+
+        // Fetch channels.json on load
+        async function initApp() {
+            try {
+                const response = await fetch('channels.json');
+                if (!response.ok) throw new Error('Failed to load channels.json');
+                channels = await response.json();
+                
+                document.getElementById('stat-total').textContent = channels.length;
+                buildChannelList(channels);
+                
+                if (channels.length > 0) {
+                    tuneChannel(0);
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('channel-list-container').innerHTML = `
+                    <div style="padding: 2rem; text-align: center; color: var(--danger); font-size: 0.85rem;">
+                        Error loading channels.json. Verify file exists in root directory.
+                    </div>
+                `;
+            }
+        }
+
+        function onYouTubeIframeAPIReady() {
+            apiReady = true;
+            player = new YT.Player('youtube-player', {
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    'playsinline': 1,
+                    'autoplay': 0,
+                    'origin': window.location.origin
+                },
+                events: {
+                    'onReady': () => {
+                        document.getElementById('osd-status').textContent = 'ONLINE';
+                    },
+                    'onError': onPlayerError
+                }
+            });
+        }
+
+        function buildChannelList(data) {
+            const container = document.getElementById('channel-list-container');
+            container.innerHTML = '';
+
+            data.forEach((ch, idx) => {
+                const globalIndex = channels.findIndex(c => c.id === ch.id);
+                const item = document.createElement('div');
+                item.className = `channel-item ${globalIndex === currentIndex ? 'active' : ''}`;
+                item.id = `ch-item-${globalIndex}`;
+                item.onclick = () => tuneChannel(globalIndex);
+
+                item.innerHTML = `
+                    <div class="ch-num">${ch.number || String(globalIndex + 1).padStart(2, '0')}</div>
+                    <div class="ch-details">
+                        <div class="ch-name">${ch.name}</div>
+                        <div class="ch-sub">
+                            <span>${ch.country}</span>
+                            <span>•</span>
+                            <span>${ch.category}</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function tuneChannel(index) {
+            if (index < 0 || index >= channels.length) return;
+            currentIndex = index;
+            const ch = channels[currentIndex];
+
+            // Update UI active states in list
+            document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.getElementById(`ch-item-${currentIndex}`);
+            if (activeEl) {
+                activeEl.classList.add('active');
+                activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            // Update Info Panel
+            document.getElementById('info-category').textContent = ch.category;
+            document.getElementById('info-name').textContent = ch.name;
+            document.getElementById('info-location').textContent = `${ch.country} — Broadcast Center`;
+            document.getElementById('info-broadcaster').textContent = ch.broadcaster;
+            document.getElementById('info-desc').textContent = ch.description;
+            document.getElementById('remote-ch-display').textContent = `CH ${ch.number || String(currentIndex + 1).padStart(2, '0')}`;
+
+            // Calculate local time based on offset
+            updateLocalClock(ch.localTimeOffset);
+
+            // Hide fallback, show player
+            document.getElementById('player-fallback').style.display = 'none';
+            document.getElementById('youtube-player').style.display = 'block';
+
+            // Load video in YouTube player if ready
+            if (apiReady && player && typeof player.loadVideoById === 'function') {
+                player.loadVideoById(ch.videoId);
+            }
+        }
+
+        function onPlayerError(event) {
+            console.warn("YouTube Embed Error Code:", event.data);
+            const ch = channels[currentIndex];
+            
+            // Hide iframe, display fallback overlay
+            document.getElementById('youtube-player').style.display = 'none';
+            const fallback = document.getElementById('player-fallback');
+            const link = document.getElementById('external-watch-btn');
+            
+            link.href = ch.streamUrl || `https://www.youtube.com/watch?v=${ch.videoId}`;
+            fallback.style.display = 'flex';
+        }
+
+        function changeChannel(direction) {
+            let newIndex = currentIndex + direction;
+            if (newIndex < 0) newIndex = channels.length - 1;
+            if (newIndex >= channels.length) newIndex = 0;
+            tuneChannel(newIndex);
+        }
+
+        function tuneRandom() {
+            if (channels.length <= 1) return;
+            let randomIdx;
+            do {
+                randomIdx = Math.floor(Math.random() * channels.length);
+            } while (randomIdx === currentIndex);
+            tuneChannel(randomIdx);
+        }
+
+        function filterChannels(category, btnElement) {
+            currentFilter = category;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            if (category === 'all') {
+                buildChannelList(channels);
+            } else {
+                const filtered = channels.filter(c => c.category.toLowerCase().includes(category.toLowerCase()));
+                buildChannelList(filtered);
+            }
+        }
+
+        function updateLocalClock(offset) {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const targetTime = new Date(utc + (3600000 * offset));
+            const hours = String(targetTime.getHours()).padStart(2, '0');
+            const minutes = String(targetTime.getMinutes()).padStart(2, '0');
+            document.getElementById('clock-display').textContent = `${hours}:${minutes} (UTC${offset >= 0 ? '+' : ''}${offset})`;
+        }
+
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
