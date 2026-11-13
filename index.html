@@ -244,6 +244,33 @@
       .footnote { display: block; }
       .key-help { text-align: left; margin-top: 6px; }
     }
+  
+    /* ---- Additions: guide grouping, badges, status, power-on ---- */
+    .country-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 12px 5px; color: var(--text-muted); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
+    .country-head:first-child { padding-top: 6px; }
+    .country-head .ch-country { color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .country-head .ch-time { font-family: ui-monospace, monospace; letter-spacing: .04em; text-transform: none; white-space: nowrap; }
+    .badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-muted); font: 8px/1.5 ui-monospace, monospace; letter-spacing: .08em; vertical-align: 1px; }
+    .badge.ext { color: var(--accent); border-color: rgba(217,184,120,.3); }
+    .item-number { width: 24px; }
+    .dial-btn small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 9px; }
+    .dial-btn.active small, .dial-btn:hover small { color: var(--text-soft); }
+    .dial-note { margin: 10px 2px 0; color: var(--text-muted); font-size: 10px; line-height: 1.5; min-height: 15px; }
+    .likely { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,.02); font-size: 11px; line-height: 1.55; color: var(--text-soft); }
+    .likely strong { color: var(--green); font-weight: 600; }
+    .likely span { color: var(--text-muted); }
+    .verify-line { margin-top: 14px; color: var(--text-muted); font: 10px/1.6 ui-monospace, monospace; }
+    .verify-line b { color: var(--text-soft); font-weight: 500; }
+    .tune-reason { color: var(--accent-bright); font-size: 10px; min-height: 14px; margin-top: 6px; }
+    .control-group { flex-wrap: wrap; }
+    .btn[aria-pressed="true"] { border-color: var(--border-active); color: var(--accent); }
+    .feed-status { font-family: ui-monospace, monospace; }
+    .feed-status.ok::before { content: "● "; color: var(--green); }
+    .feed-status.warn::before { content: "● "; color: var(--accent); }
+    .on-air-dot.off { background: var(--text-muted); box-shadow: none; }
+    @media (prefers-reduced-motion: reduce) { .osd-banner, .btn, .channel-item { transition: none; } }
+    @media (max-width: 760px) { .player-controls { flex-direction: column; } .player-hint { max-width: none; text-align: left; } }
+    .item-name, .item-sub { display: block; }
   </style>
 </head>
 <body>
@@ -257,7 +284,7 @@
         </div>
       </div>
       <div class="top-meta">
-        <span class="meta-count" id="channel-count">16 CHANNELS IN THE GUIDE</span>
+        <span class="meta-count" id="channel-count">LOADING THE GUIDE</span>
         <span class="utc" id="utc-clock">--:-- UTC</span>
       </div>
     </header>
@@ -266,7 +293,7 @@
       <div>
         <div class="eyebrow">A window into everyday television</div>
         <h1>Turn on somewhere else.</h1>
-        <p>Choose a country, tune into a real broadcaster, and let the local television day unfold. News is part of the dial, not the whole point.</p>
+        <p>Choose a country, tune into a real broadcaster in its own language, and let the local television day unfold. News is one part of the dial; entertainment, breakfast shows, weather and local stations sit alongside it.</p>
       </div>
       <div class="intro-note">The best discoveries are often incidental: a weather forecast, a station ident, a studio set, a local advert or a programme you have never heard of.</div>
     </section>
@@ -275,35 +302,36 @@
       <section class="main-column" aria-label="Selected television channel">
         <div class="player-card">
           <div class="player-topline">
-            <div class="on-air-label"><span class="on-air-dot"></span><span id="player-state">CHANNEL SELECTED</span></div>
+            <div class="on-air-label"><span class="on-air-dot off" id="on-air-dot"></span><span id="player-state">STANDBY</span></div>
             <div class="player-location" id="player-location">--:-- local time</div>
           </div>
           <div class="screen-wrap">
             <div class="screen" id="screen">
-              <!-- Transient OSD Banner -->
               <div class="osd-banner" id="osd-banner">
-                <span class="osd-ch" id="osd-banner-ch">CH 01</span>
-                <span id="osd-banner-title">FRANCE 24</span>
+                <span class="osd-ch" id="osd-banner-ch">CH 001</span>
+                <span id="osd-banner-title"></span>
               </div>
-
               <div class="screen-placeholder" id="screen-placeholder">
                 <div class="screen-emblem">◉</div>
-                <h2 id="placeholder-title">Choose a channel</h2>
-                <p id="placeholder-copy">The live player will appear here when a channel is selected.</p>
-                <div class="screen-actions">
-                  <a class="btn primary" id="placeholder-watch" href="#" target="_blank" rel="noopener noreferrer" hidden>Open official live stream ↗</a>
-                </div>
+                <h2 id="placeholder-title">Loading the channel guide…</h2>
+                <p id="placeholder-copy"></p>
+                <div class="screen-actions" id="placeholder-actions"></div>
               </div>
               <div class="screen-caption" id="screen-caption">ELSEWHERE TV · INTERNATIONAL DIAL</div>
             </div>
           </div>
           <div class="player-controls">
-            <div class="control-group">
-              <button class="btn" id="prev-channel" type="button" aria-label="Previous channel">← Prev</button>
-              <button class="btn primary" id="random-channel" type="button">Tune in somewhere</button>
-              <button class="btn" id="next-channel" type="button" aria-label="Next channel">Next →</button>
+            <div>
+              <div class="control-group">
+                <button class="btn" id="prev-channel" type="button" aria-label="Previous channel">← Prev</button>
+                <button class="btn primary" id="random-channel" type="button">Tune in somewhere</button>
+                <button class="btn" id="next-channel" type="button" aria-label="Next channel">Next →</button>
+                <button class="btn" id="next-country" type="button" aria-label="Next country">Next country ↓</button>
+                <button class="btn" id="sound-toggle" type="button" aria-pressed="false">Sound off</button>
+              </div>
+              <div class="tune-reason" id="tune-reason" aria-live="polite"></div>
             </div>
-            <div class="player-hint"><a class="text-link" id="player-external-link" href="#" target="_blank" rel="noopener noreferrer">Open source ↗</a><br>YouTube embeds start muted. Use player controls for sound.</div>
+            <div class="player-hint"><a class="text-link" id="player-external-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open source ↗</a><br>Nothing plays until you switch on. Streams start muted unless Sound is on.</div>
           </div>
         </div>
 
@@ -318,7 +346,9 @@
           </div>
           <div class="meta-row" id="channel-meta"></div>
           <p class="description" id="channel-description">Choose a channel from the guide to see its profile and viewing links.</p>
-          <div class="culture-note" id="culture-note"><strong>What to notice</strong> — The small details of local television are part of the experience.</div>
+          <div class="likely" id="likely-now" hidden></div>
+          <div class="culture-note" id="culture-note"></div>
+          <div class="verify-line" id="verify-line"></div>
           <div class="detail-links">
             <a class="text-link" id="youtube-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open on YouTube ↗</a>
             <a class="text-link" id="official-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Broadcaster website ↗</a>
@@ -330,26 +360,21 @@
         <section class="discovery-card">
           <div class="section-label"><span>Ways to explore</span><span>Discovery dial</span></div>
           <div class="dial-grid" id="dial-grid">
-            <button class="dial-btn active" data-dial="all" type="button">Around the dial</button>
-            <button class="dial-btn" data-dial="evening" type="button">Evening somewhere</button>
-            <button class="dial-btn" data-dial="morning" type="button">Morning somewhere</button>
-            <button class="dial-btn" data-dial="culture" type="button">Culture & entertainment</button>
-            <button class="dial-btn" data-dial="commercial" type="button">Commercial networks</button>
+            <button class="dial-btn active" data-dial="all" type="button">Around the dial<small>Every country, in guide order</small></button>
+            <button class="dial-btn" data-dial="evening" type="button">The evening dial<small>17:00–23:00 local</small></button>
+            <button class="dial-btn" data-dial="morning" type="button">Morning television<small>05:00–11:00 local</small></button>
+            <button class="dial-btn" data-dial="beyond" type="button">Beyond the headlines<small>Entertainment, talk, weather</small></button>
+            <button class="dial-btn" data-dial="commercial" type="button">Commercial television<small>Advertiser-funded networks</small></button>
+            <button class="dial-btn" data-dial="local" type="button">Own-language only<small>Hide international services</small></button>
           </div>
+          <div class="dial-note" id="dial-note"></div>
         </section>
 
         <section class="guide-card">
           <div class="guide-head">
-            <div class="section-label"><span>Channel guide</span><span id="visible-count">16 listed</span></div>
+            <div class="section-label"><span>Channel guide</span><span id="visible-count">—</span></div>
             <div class="search-wrap"><input id="search" type="search" autocomplete="off" placeholder="Find a country, network or language…" aria-label="Search channels"></div>
-            <div class="region-row" id="region-filters" aria-label="Filter channels by region">
-              <button class="region-btn active" data-region="All" type="button">All regions</button>
-              <button class="region-btn" data-region="Europe" type="button">Europe</button>
-              <button class="region-btn" data-region="Asia" type="button">Asia</button>
-              <button class="region-btn" data-region="Middle East" type="button">Middle East</button>
-              <button class="region-btn" data-region="Africa" type="button">Africa</button>
-              <button class="region-btn" data-region="Americas" type="button">Americas</button>
-            </div>
+            <div class="region-row" id="region-filters" aria-label="Filter channels by region"></div>
           </div>
           <div class="guide-list" id="channel-list" aria-label="Available channels"></div>
         </section>
@@ -357,407 +382,545 @@
     </main>
 
     <footer class="footnote">
-      <div>ELSEWHERE TV is a curated remote control, not a rebroadcast service. Streams remain hosted by their broadcasters and YouTube. Live availability, embedding permissions and geographic access can change without notice.</div>
-      <div class="key-help">Keyboard: ← / ↑ prev · → / ↓ next</div>
+      <div>ELSEWHERE TV is a curated remote control and rebroadcasts nothing. Streams stay hosted by their broadcasters and YouTube; live availability, embedding permissions and geographic access can change without notice. <span class="feed-status" id="feed-status"></span></div>
+      <div class="key-help">Keys: ← → channel · ↑ ↓ country · T tune in · M sound</div>
     </footer>
   </div>
 
   <script>
-    const channels = [
-      {
-        id: 1, number: '01', name: 'FRANCE 24 English', country: 'France', flag: '🇫🇷', city: 'Paris', region: 'Europe',
-        language: 'English', timezone: 'Europe/Paris', category: 'International news', broadcaster: 'France Médias Monde', type: 'Public international broadcaster',
-        channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', youtubeUrl: 'https://www.youtube.com/channel/UCQfwfsi5VrQ8yKZ-UWmAEFg/live',
-        officialUrl: 'https://www.france24.com/en/live', embed: true,
-        description: 'The English-language service of France’s international news broadcaster. A Paris-based view of world events, with rolling coverage, interviews and explainers.',
-        culture: 'Notice the French studio aesthetic, European framing, bilingual brand identity and the way international stories are packaged for a global audience.',
-        commercial: false
-      },
-      {
-        id: 2, number: '02', name: 'DW News', country: 'Germany', flag: '🇩🇪', city: 'Berlin / Bonn', region: 'Europe',
-        language: 'English', timezone: 'Europe/Berlin', category: 'International news', broadcaster: 'Deutsche Welle', type: 'Public international broadcaster',
-        channelId: 'UCknLrEdhRCp1aegoMqRaCZg', youtubeUrl: 'https://www.youtube.com/channel/UCknLrEdhRCp1aegoMqRaCZg/live',
-        officialUrl: 'https://www.dw.com/en/live-tv/s-100821', embed: true,
-        description: 'Germany’s international public broadcaster, with reporting and analysis from Europe and a worldwide correspondent network.',
-        culture: 'Look for the measured presentation style, European political context and the contrast between German public broadcasting and commercial news formats.',
-        commercial: false
-      },
-      {
-        id: 3, number: '03', name: 'Al Jazeera English', country: 'Qatar', flag: '🇶🇦', city: 'Doha', region: 'Middle East',
-        language: 'English', timezone: 'Asia/Qatar', category: 'International news', broadcaster: 'Al Jazeera Media Network', type: 'Publicly funded international broadcaster',
-        channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', youtubeUrl: 'https://www.youtube.com/channel/UCNye-wNBqNL5ZzHSJj3l8Bg/live',
-        officialUrl: 'https://www.aljazeera.com/live', embed: true,
-        description: 'A Doha-based international network with substantial reporting from the Middle East, Africa, Asia and the wider world.',
-        culture: 'Notice the global correspondent mix, studio presentation and the stories that receive sustained attention compared with US- and Europe-led networks.',
-        commercial: false
-      },
-      {
-        id: 4, number: '04', name: 'Sky News', country: 'United Kingdom', flag: '🇬🇧', city: 'London', region: 'Europe',
-        language: 'English', timezone: 'Europe/London', category: 'National & international news', broadcaster: 'Sky Group', type: 'Commercial broadcaster',
-        channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', youtubeUrl: 'https://www.youtube.com/channel/UCoMdktPbSTixAyNGwb-UYkQ/live',
-        officialUrl: 'https://news.sky.com/watch-live', embed: true,
-        description: 'A major UK commercial news channel. Its live output combines British domestic coverage with international reporting and rolling breaking-news presentation.',
-        culture: 'A useful comparison point for British broadcast conventions: presenter style, weather presentation, studio graphics and the rhythm of a commercial news operation.',
-        commercial: true
-      },
-      {
-        id: 5, number: '05', name: 'TRT World', country: 'Türkiye', flag: '🇹🇷', city: 'Istanbul', region: 'Europe',
-        language: 'English', timezone: 'Europe/Istanbul', category: 'International news & features', broadcaster: 'Turkish Radio and Television Corporation', type: 'Public international broadcaster',
-        channelId: 'UC7fWeaHhqgM4Ry-RMpM2YYw', youtubeUrl: 'https://www.youtube.com/channel/UC7fWeaHhqgM4Ry-RMpM2YYw/live',
-        officialUrl: 'https://www.trtworld.com/live', embed: true,
-        description: 'Türkiye’s English-language international news service, broadcasting from Istanbul with a particular focus on regional and international affairs.',
-        culture: 'Watch for Istanbul studio imagery, Turkish network presentation and the selection of regional stories that anchor the channel’s worldview.',
-        commercial: false
-      },
-      {
-        id: 6, number: '06', name: 'NHK WORLD-JAPAN', country: 'Japan', flag: '🇯🇵', city: 'Tokyo', region: 'Asia',
-        language: 'English', timezone: 'Asia/Tokyo', category: 'News, culture & documentaries', broadcaster: 'Japan Broadcasting Corporation (NHK)', type: 'Public broadcaster',
-        channelId: 'UCSPEjw8F2nQDtmUKPFNF7_A', youtubeUrl: 'https://www.youtube.com/channel/UCSPEjw8F2nQDtmUKPFNF7_A/live',
-        officialUrl: 'https://www3.nhk.or.jp/nhkworld/en/live/', embed: true,
-        description: 'NHK’s international English-language service. Alongside news, it carries programmes about Japanese society, food, design, travel, technology and everyday life.',
-        culture: 'One of the strongest choices for going beyond headlines: look for regional features, food and craft programmes, public information and the cadence of Japanese television.',
-        commercial: false
-      },
-      {
-        id: 7, number: '07', name: 'CNA', country: 'Singapore', flag: '🇸🇬', city: 'Singapore', region: 'Asia',
-        language: 'English', timezone: 'Asia/Singapore', category: 'Asian news & documentaries', broadcaster: 'Mediacorp', type: 'Commercial broadcaster',
-        channelId: 'UC83jt4dlz1Gjl58fzQrrKZg', youtubeUrl: 'https://www.youtube.com/channel/UC83jt4dlz1Gjl58fzQrrKZg/live',
-        officialUrl: 'https://www.channelnewsasia.com/watch', embed: true,
-        description: 'Singapore’s English-language news network, offering an Asian perspective on regional affairs, business, society and current events.',
-        culture: 'Pay attention to how Southeast Asia is framed from Singapore, including regional business coverage, multilingual surroundings and the network’s polished studio style.',
-        commercial: true
-      },
-      {
-        id: 8, number: '08', name: 'Bloomberg Television', country: 'United States', flag: '🇺🇸', city: 'New York', region: 'Americas',
-        language: 'English', timezone: 'America/New_York', category: 'Business & markets', broadcaster: 'Bloomberg Media', type: 'Commercial broadcaster',
-        channelId: 'UCIALMKvObZNtJ6AmdCLP7Lg', youtubeUrl: 'https://www.youtube.com/channel/UCIALMKvObZNtJ6AmdCLP7Lg/live',
-        officialUrl: 'https://www.bloomberg.com/live', embed: true,
-        description: 'A continuous business and financial news service. A different kind of national television window, particularly during market hours and major economic announcements.',
-        culture: 'The ticker, market dashboards, interview formats and on-air vocabulary offer a distinct view of how finance is woven into American business television.',
-        commercial: true
-      },
-      {
-        id: 9, number: '09', name: 'ABC News Australia', country: 'Australia', flag: '🇦🇺', city: 'Australia-wide', region: 'Asia',
-        language: 'English', timezone: 'Australia/Sydney', category: 'National news & current affairs', broadcaster: 'Australian Broadcasting Corporation', type: 'Public broadcaster',
-        channelId: 'UCVgO39Bk5sMo66-6o6Spn6Q', youtubeUrl: 'https://www.youtube.com/channel/UCVgO39Bk5sMo66-6o6Spn6Q/live',
-        officialUrl: 'https://www.abc.net.au/news/newschannel/', embed: true,
-        description: 'The ABC’s continuous news service, covering Australian national affairs, regional stories, weather and the wider Asia-Pacific.',
-        culture: 'Notice the Australian regional focus, references to the Pacific, local weather and the balance between national and international coverage.',
-        commercial: false
-      },
-      {
-        id: 10, number: '10', name: 'Africanews', country: 'Pan-Africa', flag: '🌍', city: 'Pointe-Noire (regional feed)', region: 'Africa',
-        language: 'English / French', timezone: 'Africa/Brazzaville', category: 'African news & business', broadcaster: 'Africanews / Euronews Group', type: 'Commercial regional broadcaster',
-        channelId: 'UC1_E8NeF5QHY2dtdLRBCCLA', youtubeUrl: 'https://www.youtube.com/channel/UC1_E8NeF5QHY2dtdLRBCCLA/live',
-        officialUrl: 'https://www.africanews.com/live/', embed: true,
-        description: 'A pan-African news network with English- and French-language output, covering politics, business, culture and society across the continent.',
-        culture: 'Useful for moving beyond a single-country lens: notice which countries and cities appear, the range of accents and the subjects that receive airtime.',
-        commercial: true
-      },
-      {
-        id: 11, number: '11', name: 'CBS News 24/7', country: 'United States', flag: '🇺🇸', city: 'New York', region: 'Americas',
-        language: 'English', timezone: 'America/New_York', category: 'US news & current affairs', broadcaster: 'CBS News', type: 'Commercial broadcaster',
-        channelId: 'UC8p1vwvWtl6T73JiExfWs1g', youtubeUrl: 'https://www.youtube.com/channel/UC8p1vwvWtl6T73JiExfWs1g/live',
-        officialUrl: 'https://www.cbsnews.com/live/', embed: true,
-        description: 'CBS’s free streaming news service, with live coverage, recorded reports and scheduled news programming from the United States.',
-        culture: 'A point of comparison for US broadcast storytelling, studio pacing, domestic news priorities and the style of a large commercial network.',
-        commercial: true
-      },
-      {
-        id: 12, number: '12', name: 'KBS WORLD TV', country: 'South Korea', flag: '🇰🇷', city: 'Seoul', region: 'Asia',
-        language: 'Korean / English subtitles', timezone: 'Asia/Seoul', category: 'Entertainment & culture', broadcaster: 'Korean Broadcasting System (KBS)', type: 'Public broadcaster',
-        youtubeUrl: 'https://www.youtube.com/@kbsworldtv/live', officialUrl: 'https://kbsworld.kbs.co.kr/', embed: false,
-        description: 'KBS’s international television service, known for Korean drama, variety, music and cultural programming.',
-        culture: 'A stronger entertainment-oriented stop: watch for Korean studio formats, music programmes, drama promotion and the visual language of mainstream Korean television.',
-        commercial: false
-      },
-      {
-        id: 13, number: '13', name: 'Arirang TV', country: 'South Korea', flag: '🇰🇷', city: 'Seoul', region: 'Asia',
-        language: 'English / Korean', timezone: 'Asia/Seoul', category: 'Culture, entertainment & news', broadcaster: 'Korea International Broadcasting Foundation', type: 'Public international broadcaster',
-        youtubeUrl: 'https://www.youtube.com/user/arirang/live', officialUrl: 'https://www.arirang.com/', embed: false,
-        description: 'An international Korean television service with news, cultural, educational and entertainment programmes, including K-culture coverage.',
-        culture: 'A useful counterweight to rolling news: look for Korean arts, food, music, cultural features and the way South Korea presents itself to international viewers.',
-        commercial: false
-      },
-      {
-        id: 14, number: '14', name: 'TVP World', country: 'Poland', flag: '🇵🇱', city: 'Warsaw', region: 'Europe',
-        language: 'English', timezone: 'Europe/Warsaw', category: 'Polish & Central European news', broadcaster: 'Telewizja Polska', type: 'Public broadcaster',
-        youtubeUrl: 'https://www.youtube.com/live/bP43gNbM80U', officialUrl: 'https://tvpworld.com/', embed: false,
-        description: 'Poland’s English-language international news channel, with a focus on Polish affairs, Central Europe and the region’s place in the world.',
-        culture: 'Notice how Polish and Central European stories are explained to an international audience, and how the channel’s framing differs from larger Western European networks.',
-        commercial: false
-      },
-      {
-        id: 15, number: '15', name: 'Thai PBS', country: 'Thailand', flag: '🇹🇭', city: 'Bangkok', region: 'Asia',
-        language: 'Thai (AI Captions)', timezone: 'Asia/Bangkok', category: 'Public affairs, culture & general TV', broadcaster: 'Thai Public Broadcasting Service', type: 'Public broadcaster',
-        youtubeUrl: 'https://www.youtube.com/ThaiPBS/live', officialUrl: 'https://www.thaipbs.or.th/live/en', embed: false,
-        description: 'Thailand’s public-service television network. Its official live page includes a linear feed with English AI-generated captions.',
-        culture: 'Closer to everyday local-TV: look for Thai-language presentation, public information, regional stories and cultural programmes.',
-        commercial: false
-      },
-      {
-        id: 16, number: '16', name: 'Canal 24 Horas', country: 'Spain', flag: '🇪🇸', city: 'Madrid', region: 'Europe',
-        language: 'Spanish', timezone: 'Europe/Madrid', category: 'Spanish news & current affairs', broadcaster: 'Radiotelevisión Española (RTVE)', type: 'Public broadcaster',
-        youtubeUrl: '', officialUrl: 'https://www.rtve.es/play/videos/directo/24h/', embed: false,
-        description: 'RTVE’s 24-hour Spanish-language news channel, available through the broadcaster’s official live player.',
-        culture: 'A good way to hear the pace and register of Spanish broadcast language and follow how national stories are presented from Madrid.',
-        commercial: false
-      }
-    ];
+    'use strict';
+    // ELSEWHERE TV — channel data lives in channels.json. Stream links for
+    // channels shared with Breaking Wall are refreshed at page load from that
+    // project's validated feed (matched on its stable `key`, never on name).
+    const CATALOG_URL = './channels.json';
+    const FEED_TIMEOUT_MS = 6000;
+    const REGION_ORDER = ['Europe', 'Middle East', 'Africa', 'Asia', 'Pacific', 'North America', 'Latin America'];
+    const NEWSY = new Set(['news', 'business']);
+    const DIAL_NOTES = {
+      all: '',
+      evening: 'Channels where it is evening right now. The list changes as the world turns.',
+      morning: 'Channels where the day is starting: breakfast shows and morning bulletins.',
+      beyond: 'General entertainment, talk, culture, weather, shopping and local stations.',
+      commercial: 'Advertiser-funded networks. Ad breaks are unconfirmed: many broadcasters swap them for a holding slate on YouTube.',
+      local: 'Domestic channels in their own language; international English services are hidden.'
+    };
 
     const $ = (id) => document.getElementById(id);
-    let currentId = channels[0].id;
+    let channels = [];
+    let visibleChannels = [];
+    let currentId = null;
     let activeRegion = 'All';
     let activeDial = 'all';
     let query = '';
-    let visibleChannels = [...channels];
+    let poweredOn = false;
+    let soundOn = false;
     let osdTimeout = null;
+    let tuneSeq = 0;
+    let ytPlayer = null;
+    let ytApiRequested = false;
+    const visitedCountries = new Set();
 
-    function currentChannel() { return channels.find(channel => channel.id === currentId) || channels[0]; }
-    
+    // ---------- helpers ----------
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined && text !== null) node.textContent = text;
+      return node;
+    }
+    function store(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ } }
+    function recall(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+    function flagOf(code) {
+      if (!code || code.length !== 2) return '🌍';
+      if (code === 'eu') return '🇪🇺';
+      return String.fromCodePoint(...[...code.toUpperCase()].map(c => 127397 + c.charCodeAt(0)));
+    }
+    function videoIdOf(url) {
+      const m = String(url || '').match(/(?:[?&]v=|youtu\.be\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{6,15})/);
+      return m ? m[1] : null;
+    }
+    function currentChannel() { return channels.find(c => c.id === currentId) || null; }
+    function isExternal(c) { return c.embed === 'external' || (!c.channelId && !c.videoId); }
+    function isNonNews(c) { return !NEWSY.has(c.genre); }
+
     function timeParts(timeZone) {
       try {
         const now = new Date();
         const time = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
-        const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', hour12: false }).format(now));
+        const hour = Number(time.slice(0, 2)) % 24;
         const day = new Intl.DateTimeFormat('en', { timeZone, weekday: 'long' }).format(now);
         return { time, hour, day };
       } catch (error) {
         return { time: '--:--', hour: 12, day: '' };
       }
     }
-
     function daypart(hour) {
       if (hour >= 5 && hour < 11) return 'Morning';
       if (hour >= 11 && hour < 17) return 'Daytime';
       if (hour >= 17 && hour < 23) return 'Evening';
       return 'Late night';
     }
+    // A plain-language guess from the local hour and channel type. It is a
+    // convention of television schedules, not a listing.
+    function likelyNow(c, hour) {
+      const g = c.genre;
+      if (g === 'weather') return 'Forecasts and live weather maps, updated through the day';
+      if (g === 'shopping') return 'Live product presentations, around the clock';
+      if (g === 'business') return hour >= 6 && hour < 18 ? 'Markets coverage while local exchanges trade' : 'Markets wrap-ups and overseas trading sessions';
+      const newsy = g === 'news' || g === 'local' || g === 'talk';
+      if (hour >= 5 && hour < 9) return newsy ? 'Breakfast news and the morning headlines' : 'Breakfast television';
+      if (hour >= 9 && hour < 12) return newsy ? 'Rolling morning coverage' : 'Morning magazine and talk shows';
+      if (hour >= 12 && hour < 14) return newsy ? 'Lunchtime bulletins' : 'Midday news and lunchtime shows';
+      if (hour >= 14 && hour < 17) return newsy ? 'Afternoon rolling news' : 'Afternoon dramas, repeats and talk';
+      if (hour >= 17 && hour < 20) return newsy ? 'The early-evening news hour' : 'Early-evening news and game shows';
+      if (hour >= 20 && hour < 23) return newsy ? 'Main evening bulletins and debate programmes' : 'Prime time: the day\'s biggest dramas and variety shows';
+      return newsy ? 'Overnight repeats and simulcasts' : 'Late-night repeats and overnight filler';
+    }
 
+    // ---------- data loading ----------
+    function prepare(list) {
+      const firstSeen = new Map();
+      list.forEach((c, i) => { if (!firstSeen.has(c.country)) firstSeen.set(c.country, i); });
+      const sorted = list.slice().sort((a, b) => {
+        const ra = REGION_ORDER.indexOf(a.region), rb = REGION_ORDER.indexOf(b.region);
+        if (ra !== rb) return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb);
+        const ca = firstSeen.get(a.country), cb = firstSeen.get(b.country);
+        if (ca !== cb) return ca - cb;
+        const sa = a.service === 'international' ? 1 : 0, sb = b.service === 'international' ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return list.indexOf(a) - list.indexOf(b);
+      });
+      sorted.forEach((c, i) => {
+        c.number = String(i + 1).padStart(3, '0');
+        c.flag = flagOf(c.countryCode);
+        c.snapshotVideoId = c.videoId || null;
+        c.feedState = null;
+      });
+      return sorted;
+    }
+
+    // Applies Breaking Wall's validated feed. Identity is the feed's stable
+    // `key`; a channel without a matching key is left on its snapshot.
+    function applyFeed(feed) {
+      const report = { matched: 0, updated: 0, dead: 0 };
+      if (!Array.isArray(feed)) return report;
+      const byKey = new Map();
+      feed.forEach(entry => { if (entry && entry.key) byKey.set(entry.key, entry); });
+      channels.forEach(c => {
+        if (!c.breakingWallKey) return;
+        const entry = byKey.get(c.breakingWallKey);
+        if (!entry) return;
+        report.matched++;
+        if (entry.status === 'live') {
+          const id = videoIdOf(entry.url);
+          if (id && id !== c.videoId) { c.videoId = id; report.updated++; }
+          c.feedState = 'live';
+        } else {
+          c.feedState = 'dead';
+          report.dead++;
+        }
+      });
+      return report;
+    }
+
+    async function loadFeed(url) {
+      const status = $('feed-status');
+      if (!url) return;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
+        const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timer);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const report = applyFeed(await res.json());
+        status.className = 'feed-status ok';
+        status.textContent = `Breaking Wall feed synced: ${report.matched} shared channels, ${report.updated} links refreshed` + (report.dead ? `, ${report.dead} reported down.` : '.');
+        const c = currentChannel();
+        if (c && !poweredOn) renderDetails(c);
+      } catch (error) {
+        status.className = 'feed-status warn';
+        status.textContent = 'Breaking Wall feed unreachable; using the links saved in channels.json.';
+      }
+    }
+
+    async function init() {
+      updateClocks();
+      let data;
+      try {
+        const res = await fetch(CATALOG_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+      } catch (error) {
+        showCard('The channel guide could not be loaded', 'channels.json must sit beside index.html and be served over http(s). Opening the page straight from a folder will not work.', []);
+        $('channel-count').textContent = 'GUIDE UNAVAILABLE';
+        return;
+      }
+      channels = prepare(Array.isArray(data) ? data : data.channels || []);
+      const countries = new Set(channels.map(c => c.country)).size;
+      $('channel-count').textContent = `${channels.length} CHANNELS · ${countries} COUNTRIES`;
+      buildRegionButtons();
+      const wanted = decodeURIComponent(location.hash.slice(1)) || recall('elsewhereLastChannel');
+      const start = channels.find(c => c.id === wanted) || pickSomewhere() || channels[0];
+      currentId = start.id;
+      filterChannels();
+      selectChannel(start.id, { silent: true });
+      window.setInterval(updateClocks, 15000);
+      window.setInterval(() => { if (activeDial === 'evening' || activeDial === 'morning') filterChannels(); else renderGuideTimes(); }, 60000);
+      loadFeed(data.breakingWallFeed);
+    }
+
+    // ---------- player ----------
+    function embedSrc(c, mode) {
+      const p = new URLSearchParams({ autoplay: '1', mute: soundOn ? '0' : '1', controls: '1', playsinline: '1', rel: '0', enablejsapi: '1' });
+      if (/^https?:/.test(location.origin)) p.set('origin', location.origin);
+      if (mode === 'channel') { p.set('channel', c.channelId); return `https://www.youtube.com/embed/live_stream?${p}`; }
+      return `https://www.youtube.com/embed/${encodeURIComponent(c.videoId)}?${p}`;
+    }
+    // Which embed to try first, and what to fall back to if it errors.
+    function embedPlan(c) {
+      const hasChannel = /^UC[\w-]{22}$/.test(c.channelId || '');
+      const modes = [];
+      if (c.embed === 'channel' && hasChannel) modes.push('channel');
+      if (c.videoId) modes.push('video');
+      if (hasChannel && !modes.includes('channel')) modes.push('channel');
+      return modes;
+    }
+    function clearScreen() {
+      if (ytPlayer && ytPlayer.destroy) { try { ytPlayer.destroy(); } catch (e) { /* already gone */ } }
+      ytPlayer = null;
+      const existing = $('screen').querySelector('iframe');
+      if (existing) existing.remove();
+    }
+    function showCard(title, copy, actions) {
+      $('placeholder-title').textContent = title;
+      $('placeholder-copy').textContent = copy;
+      const box = $('placeholder-actions');
+      box.replaceChildren();
+      actions.forEach(a => {
+        let node;
+        if (a.href) {
+          node = el('a', 'btn' + (a.primary ? ' primary' : ''), a.label);
+          node.href = a.href; node.target = '_blank'; node.rel = 'noopener noreferrer';
+        } else {
+          node = el('button', 'btn' + (a.primary ? ' primary' : ''), a.label);
+          node.type = 'button'; node.addEventListener('click', a.onClick);
+        }
+        box.appendChild(node);
+      });
+      $('screen-placeholder').hidden = false;
+    }
+    function setState(text, live) {
+      $('player-state').textContent = text;
+      $('on-air-dot').classList.toggle('off', !live);
+    }
+    function linkActions(c) {
+      const actions = [];
+      if (c.youtubeUrl) actions.push({ label: 'Open on YouTube ↗', href: c.youtubeUrl, primary: true });
+      if (c.officialUrl) actions.push({ label: c.youtubeUrl ? 'Broadcaster website ↗' : 'Open the official live player ↗', href: c.officialUrl, primary: !c.youtubeUrl });
+      actions.push({ label: 'Next channel →', onClick: () => moveChannel(1) });
+      return actions;
+    }
+    function showFallback(c) {
+      clearScreen();
+      setState('STREAM UNAVAILABLE HERE', false);
+      showCard('This stream is not playing here', `${c.name} may be between broadcasts, blocked in your region, or closed to embedding. The broadcaster's own pages are the reliable route.`, linkActions(c));
+    }
+    function showStandby(c) {
+      clearScreen();
+      setState('STANDBY', false);
+      const local = timeParts(c.timezone);
+      showCard(`${c.name}`, `${local.time} in ${c.city || c.country}. Switch on to start the live stream, muted.`, [{ label: 'Switch on', primary: true, onClick: () => { poweredOn = true; renderPlayer(c); } }]);
+    }
+    function ensureYtApi() {
+      if (ytApiRequested || (window.YT && window.YT.Player)) return;
+      ytApiRequested = true;
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      document.head.appendChild(tag);
+    }
+    function attachApi(frame, c, plan, index, seq) {
+      const bind = () => {
+        if (seq !== tuneSeq || !frame.isConnected || !(window.YT && window.YT.Player)) return;
+        try {
+          ytPlayer = new window.YT.Player(frame, {
+            events: {
+              onError: () => { if (seq === tuneSeq) startEmbed(c, plan, index + 1, seq); },
+              onStateChange: (e) => { if (seq === tuneSeq && e.data === 1) setState('ON AIR · YOUTUBE LIVE', true); }
+            }
+          });
+        } catch (e) { /* plain iframe keeps working without the API */ }
+      };
+      if (window.YT && window.YT.Player) bind();
+      else {
+        const previous = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => { if (typeof previous === 'function') previous(); bind(); };
+      }
+    }
+    function startEmbed(c, plan, index, seq) {
+      if (index >= plan.length) { showFallback(c); return; }
+      clearScreen();
+      const frame = document.createElement('iframe');
+      frame.title = `${c.name} live television`;
+      frame.allow = 'autoplay; encrypted-media; picture-in-picture; web-share';
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      frame.dataset.mode = plan[index];
+      frame.src = embedSrc(c, plan[index]);
+      $('screen').insertBefore(frame, $('osd-banner'));
+      $('screen-placeholder').hidden = true;
+      setState('TUNING · YOUTUBE LIVE', true);
+      attachApi(frame, c, plan, index, seq);
+    }
+    function renderPlayer(c) {
+      const seq = ++tuneSeq;
+      $('screen-caption').textContent = `${c.country.toUpperCase()} · ${c.name.toUpperCase()}`;
+      if (poweredOn && !isExternal(c)) triggerOsdBanner(c);
+      if (isExternal(c)) {
+        clearScreen();
+        setState('OFFICIAL PLAYER LINK', false);
+        const why = c.embedding === 'blocked'
+          ? 'This broadcaster does not allow its YouTube stream to play on other sites.'
+          : 'This broadcaster streams on its own website.';
+        showCard('Watch on the broadcaster\'s own player', `${why} It opens in a new tab.`, linkActions(c));
+        return;
+      }
+      if (!poweredOn) { showStandby(c); return; }
+      const plan = embedPlan(c);
+      if (!plan.length) { showFallback(c); return; }
+      ensureYtApi();
+      startEmbed(c, plan, 0, seq);
+    }
+    function triggerOsdBanner(c) {
+      const banner = $('osd-banner');
+      $('osd-banner-ch').textContent = `CH ${c.number}`;
+      $('osd-banner-title').textContent = `${c.name.toUpperCase()} · ${c.country.toUpperCase()}`;
+      banner.classList.add('visible');
+      if (osdTimeout) clearTimeout(osdTimeout);
+      osdTimeout = setTimeout(() => banner.classList.remove('visible'), 2600);
+    }
+    function toggleSound() {
+      soundOn = !soundOn;
+      const button = $('sound-toggle');
+      button.textContent = soundOn ? 'Sound on' : 'Sound off';
+      button.setAttribute('aria-pressed', String(soundOn));
+      if (ytPlayer && ytPlayer.mute && ytPlayer.unMute) {
+        try { soundOn ? ytPlayer.unMute() : ytPlayer.mute(); return; } catch (e) { /* fall through to reload */ }
+      }
+      const c = currentChannel();
+      if (c && poweredOn && $('screen').querySelector('iframe')) renderPlayer(c);
+    }
+
+    // ---------- details ----------
     function updateClocks() {
       const now = new Date();
       $('utc-clock').textContent = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false }).format(now) + ' UTC';
-      const channel = currentChannel();
-      const local = timeParts(channel.timezone);
+      const c = currentChannel();
+      if (!c) return;
+      const local = timeParts(c.timezone);
       $('local-clock').textContent = local.time;
       $('local-daypart').textContent = `${local.day} · ${daypart(local.hour)}`;
-      $('player-location').textContent = `${local.time} · ${channel.country}`;
+      $('player-location').textContent = `${local.time} · ${c.city || c.country}`;
+      const likely = $('likely-now');
+      likely.replaceChildren(el('strong', null, 'Likely on now'), document.createTextNode(` — ${likelyNow(c, local.hour)}. `), el('span', null, 'Typical for this hour, not a listing.'));
+      likely.hidden = false;
     }
-
-    function setLink(link, url, visible = true) {
-      if (url && visible) {
-        link.href = url;
-        link.hidden = false;
-      } else {
-        link.removeAttribute('href');
-        link.hidden = true;
-      }
+    function setLink(link, url) {
+      if (url) { link.href = url; link.hidden = false; }
+      else { link.removeAttribute('href'); link.hidden = true; }
     }
-
-    function showPlaceholder(channel, title, copy, linkText, linkUrl) {
-      const placeholder = $('screen-placeholder');
-      $('placeholder-title').textContent = title;
-      $('placeholder-copy').textContent = copy;
-      const watch = $('placeholder-watch');
-      watch.textContent = linkText;
-      if (linkUrl) {
-        watch.href = linkUrl;
-        watch.hidden = false;
-      } else {
-        watch.removeAttribute('href');
-        watch.hidden = true;
-      }
-      placeholder.hidden = false;
-      $('screen-caption').textContent = `${channel.country.toUpperCase()} · ${channel.name.toUpperCase()}`;
-    }
-
-    function triggerOsdBanner(channel) {
-      const banner = $('osd-banner');
-      $('osd-banner-ch').textContent = `CH ${channel.number}`;
-      $('osd-banner-title').textContent = channel.name.toUpperCase();
-      banner.classList.add('visible');
-      if (osdTimeout) clearTimeout(osdTimeout);
-      osdTimeout = setTimeout(() => {
-        banner.classList.remove('visible');
-      }, 2600);
-    }
-
-    function renderPlayer(channel) {
-      const screen = $('screen');
-      const existing = screen.querySelector('iframe');
-      if (existing) existing.remove();
-      $('player-state').textContent = channel.embed ? 'YOUTUBE LIVE PLAYER' : 'OFFICIAL PLAYER LINK';
-      
-      triggerOsdBanner(channel);
-
-      if (channel.embed && channel.channelId) {
-        const frame = document.createElement('iframe');
-        frame.title = `${channel.name} live television`;
-        frame.allow = 'autoplay; encrypted-media; picture-in-picture; web-share';
-        frame.allowFullscreen = true;
-        frame.loading = 'eager';
-        frame.referrerPolicy = 'strict-origin-when-cross-origin';
-        frame.src = `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(channel.channelId)}&autoplay=1&mute=1&controls=1&playsinline=1&rel=0`;
-        screen.insertBefore(frame, $('osd-banner'));
-        $('screen-placeholder').hidden = true;
-        $('screen-caption').textContent = `${channel.country.toUpperCase()} · ${channel.name.toUpperCase()} · YOUTUBE LIVE`;
-      } else {
-        const reason = channel.youtubeUrl
-          ? 'This broadcaster is listed with its official YouTube live destination, but live inline embedding is restricted. Open directly to watch.'
-          : 'This broadcaster provides its live player on its own website. Open the official player in a new tab.';
-        showPlaceholder(channel, 'Watch the official broadcast', reason, channel.youtubeUrl ? 'Open on YouTube ↗' : 'Open official live player ↗', channel.youtubeUrl || channel.officialUrl);
-      }
-    }
-
-    function renderDetails(channel) {
-      const local = timeParts(channel.timezone);
-      $('channel-kicker').textContent = `${channel.flag}  ${channel.country}  /  ${channel.region}`;
-      $('channel-name').textContent = channel.name;
-      $('channel-place').textContent = `${channel.city} · ${channel.language}`;
-      $('channel-description').textContent = channel.description;
-      $('culture-note').innerHTML = `<strong>What to notice</strong> — ${escapeHtml(channel.culture)}`;
-      $('channel-meta').replaceChildren();
-      [channel.type, channel.category, channel.language].forEach(value => {
-        const pill = document.createElement('span');
-        pill.className = 'meta-pill';
-        pill.textContent = value;
-        $('channel-meta').appendChild(pill);
-      });
-      setLink($('youtube-link'), channel.youtubeUrl);
-      setLink($('official-link'), channel.officialUrl);
-      const sourceLink = $('player-external-link');
-      setLink(sourceLink, channel.youtubeUrl || channel.officialUrl);
-      sourceLink.textContent = channel.youtubeUrl ? 'Open on YouTube ↗' : 'Open official player ↗';
+    const STATUS_TEXT = { 'verified-live': 'Live stream verified', 'off-air-at-check': 'Source verified; off air when checked', 'external-unconfirmed': 'External link; stream not confirmed' };
+    function renderDetails(c) {
+      $('channel-kicker').textContent = `${c.flag}  ${c.country}  /  ${c.region}`;
+      $('channel-name').textContent = c.name;
+      $('channel-place').textContent = `${c.city} · ${c.broadcaster}`;
+      $('channel-description').textContent = c.description + (c.availabilityNote ? ` ${c.availabilityNote}` : '');
+      $('culture-note').replaceChildren(el('strong', null, 'What to notice'), document.createTextNode(` — ${c.notice}`));
+      const meta = $('channel-meta');
+      meta.replaceChildren();
+      [c.broadcasterType, c.category, c.language, c.service === 'international' ? 'International service' : 'Domestic channel'].forEach(v => meta.appendChild(el('span', 'meta-pill', v)));
+      const verify = $('verify-line');
+      const bits = [`${STATUS_TEXT[c.status] || c.status} ${c.lastVerified}`];
+      if (c.embedding && c.embedding !== 'not applicable') bits.push(`embedding ${c.embedding}`);
+      bits.push(`regional limits ${c.geoRestriction}`);
+      if (c.commercial) bits.push(c.ads === 'programming' ? 'the selling is the programme' : `ad breaks ${c.ads}`);
+      if (c.feedState === 'live') bits.push('link kept current by Breaking Wall');
+      if (c.feedState === 'dead') bits.push('Breaking Wall reports this stream down');
+      verify.replaceChildren(el('b', null, 'Source'), document.createTextNode(' — ' + bits.join(' · ')));
+      setLink($('youtube-link'), c.youtubeUrl);
+      setLink($('official-link'), c.officialUrl);
+      const source = $('player-external-link');
+      setLink(source, c.youtubeUrl || c.officialUrl);
+      source.textContent = c.youtubeUrl ? 'Open on YouTube ↗' : 'Open official player ↗';
       updateClocks();
     }
 
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
-    }
-
-    function tune(channelId) {
-      const channel = channels.find(item => item.id === channelId);
-      if (!channel) return;
-      currentId = channel.id;
-      renderPlayer(channel);
-      renderDetails(channel);
+    // ---------- tuning ----------
+    function selectChannel(id, options = {}) {
+      const c = channels.find(item => item.id === id);
+      if (!c) return;
+      currentId = c.id;
+      visitedCountries.add(c.country);
+      store('elsewhereLastChannel', c.id);
+      if (!options.silent) { try { history.replaceState(null, '', `#${encodeURIComponent(c.id)}`); } catch (e) { /* non-navigable context */ } }
+      if (!options.keepReason) $('tune-reason').textContent = '';
+      renderPlayer(c);
+      renderDetails(c);
       renderGuide();
     }
+    // A channel change is a deliberate act, so it also switches the set on.
+    function tune(id, options) { poweredOn = true; selectChannel(id, options); }
 
+    // Curated pick: another country, not yet visited this session, weighted
+    // towards places where it is evening or morning and towards non-news.
+    function pickSomewhere() {
+      const here = currentChannel();
+      const base = (visibleChannels.length ? visibleChannels : channels).filter(c => !isExternal(c) && c.status === 'verified-live');
+      let pool = base.filter(c => (!here || c.country !== here.country) && !visitedCountries.has(c.country));
+      if (!pool.length) { visitedCountries.clear(); pool = base.filter(c => !here || c.country !== here.country); }
+      if (!pool.length) return null;
+      const scored = pool.map(c => {
+        const hour = timeParts(c.timezone).hour;
+        let score = hour >= 19 && hour < 23 ? 4 : hour >= 17 && hour < 19 ? 3 : hour >= 6 && hour < 10 ? 3 : hour >= 10 && hour < 17 ? 1.5 : 0;
+        if (isNonNews(c)) score += 1.5;
+        if (c.service !== 'international') score += 1;
+        return { c, score, hour };
+      }).sort((a, b) => b.score - a.score);
+      const top = scored.filter(s => s.score >= scored[0].score - 1).slice(0, 8);
+      return top[Math.floor(Math.random() * top.length)].c;
+    }
+    function tuneSomewhere() {
+      const target = pickSomewhere();
+      if (!target) return;
+      const local = timeParts(target.timezone);
+      const moment = local.hour >= 19 && local.hour < 23 ? 'prime time' : daypart(local.hour).toLowerCase();
+      tune(target.id, { keepReason: true });
+      $('tune-reason').textContent = `${local.time} on ${local.day} in ${target.city || target.country}: ${moment}.`;
+      const active = $('channel-list').querySelector('.channel-item.active');
+      if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    }
+    function moveChannel(direction) {
+      const pool = visibleChannels.length ? visibleChannels : channels;
+      if (!pool.length) return;
+      let index = pool.findIndex(c => c.id === currentId);
+      index = index < 0 ? 0 : (index + direction + pool.length) % pool.length;
+      tune(pool[index].id);
+    }
+    function moveCountry(direction) {
+      const pool = visibleChannels.length ? visibleChannels : channels;
+      if (!pool.length) return;
+      const firsts = pool.filter((c, i) => i === 0 || pool[i - 1].country !== c.country);
+      const here = currentChannel();
+      let index = firsts.findIndex(c => here && c.country === here.country);
+      index = index < 0 ? 0 : (index + direction + firsts.length) % firsts.length;
+      tune(firsts[index].id);
+    }
+
+    // ---------- guide ----------
     function filterChannels() {
-      visibleChannels = channels.filter(channel => {
-        const haystack = [channel.name, channel.country, channel.city, channel.language, channel.category, channel.broadcaster, channel.type].join(' ').toLowerCase();
-        if (query && !haystack.includes(query)) return false;
-        if (activeRegion !== 'All' && channel.region !== activeRegion) return false;
-        const hour = timeParts(channel.timezone).hour;
+      visibleChannels = channels.filter(c => {
+        if (query) {
+          const haystack = [c.name, c.country, c.city, c.language, c.category, c.broadcaster, c.broadcasterType, c.region, c.genre].join(' ').toLowerCase();
+          if (!haystack.includes(query)) return false;
+        }
+        if (activeRegion !== 'All' && c.region !== activeRegion) return false;
+        const hour = timeParts(c.timezone).hour;
         if (activeDial === 'evening' && !(hour >= 17 && hour < 23)) return false;
         if (activeDial === 'morning' && !(hour >= 5 && hour < 11)) return false;
-        if (activeDial === 'culture' && !/(culture|entertainment|general tv|documentar|food|music)/i.test(channel.category + ' ' + channel.description)) return false;
-        if (activeDial === 'commercial' && !channel.commercial) return false;
+        if (activeDial === 'beyond' && !isNonNews(c)) return false;
+        if (activeDial === 'commercial' && !c.commercial) return false;
+        if (activeDial === 'local' && c.service === 'international') return false;
         return true;
       });
+      $('dial-note').textContent = DIAL_NOTES[activeDial] || '';
       renderGuide();
     }
-
     function renderGuide() {
       const list = $('channel-list');
       list.replaceChildren();
-      $('visible-count').textContent = `${visibleChannels.length} listed`;
+      const shownCountries = new Set(visibleChannels.map(c => c.country)).size;
+      $('visible-count').textContent = `${visibleChannels.length} channels · ${shownCountries} countries`;
       if (!visibleChannels.length) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        empty.textContent = 'No channels match these filters. Try another region or clear your search.';
-        list.appendChild(empty);
+        list.appendChild(el('div', 'empty-state', 'No channels match these filters. Try another region or clear your search.'));
         return;
       }
-      visibleChannels.forEach(channel => {
-        const item = document.createElement('button');
+      let lastCountry = null;
+      visibleChannels.forEach(c => {
+        if (c.country !== lastCountry) {
+          lastCountry = c.country;
+          const local = timeParts(c.timezone);
+          const head = el('div', 'country-head');
+          head.append(el('span', 'ch-country', `${c.flag} ${c.country}`));
+          const time = el('span', 'ch-time', `${local.time} · ${daypart(local.hour)}`);
+          time.dataset.tz = c.timezone;
+          head.append(time);
+          list.appendChild(head);
+        }
+        const item = el('button', `channel-item${c.id === currentId ? ' active' : ''}`);
         item.type = 'button';
-        item.className = `channel-item${channel.id === currentId ? ' active' : ''}`;
-        item.setAttribute('aria-pressed', String(channel.id === currentId));
-        const local = timeParts(channel.timezone);
-        const main = document.createElement('span');
-        main.className = 'item-main';
-        const number = document.createElement('span');
-        number.className = 'item-number';
-        number.textContent = channel.number;
-        const flag = document.createElement('span');
-        flag.className = 'item-flag';
-        flag.textContent = channel.flag;
-        const text = document.createElement('span');
-        text.className = 'item-text';
-        const name = document.createElement('span');
-        name.className = 'item-name';
-        name.textContent = channel.name;
-        const sub = document.createElement('span');
-        sub.className = 'item-sub';
-        sub.textContent = `${channel.country} · ${channel.category}`;
-        text.append(name, sub);
-        main.append(number, flag, text);
-        const time = document.createElement('span');
-        time.className = 'item-time';
-        time.textContent = local.time;
-        const small = document.createElement('small');
-        small.textContent = daypart(local.hour);
-        time.appendChild(small);
-        item.append(main, time);
-        item.addEventListener('click', () => tune(channel.id));
+        item.dataset.id = c.id;
+        item.setAttribute('aria-pressed', String(c.id === currentId));
+        const main = el('span', 'item-main');
+        const text = el('span', 'item-text');
+        const name = el('span', 'item-name', c.name);
+        if (isExternal(c)) name.appendChild(el('span', 'badge ext', 'OPENS ↗'));
+        else if (c.service === 'international') name.appendChild(el('span', 'badge', 'INTL'));
+        text.append(name, el('span', 'item-sub', `${c.category} · ${c.language}`));
+        main.append(el('span', 'item-number', c.number), text);
+        item.append(main);
+        item.addEventListener('click', () => tune(c.id));
         list.appendChild(item);
       });
     }
-
-    function setActiveButtons(selector, dataKey, value) {
-      document.querySelectorAll(selector).forEach(button => {
-        button.classList.toggle('active', button.dataset[dataKey] === value);
+    function renderGuideTimes() {
+      document.querySelectorAll('.ch-time').forEach(node => {
+        const local = timeParts(node.dataset.tz);
+        node.textContent = `${local.time} · ${daypart(local.hour)}`;
+      });
+    }
+    function buildRegionButtons() {
+      const row = $('region-filters');
+      row.replaceChildren();
+      const present = REGION_ORDER.filter(r => channels.some(c => c.region === r));
+      ['All', ...present].forEach(region => {
+        const button = el('button', 'region-btn' + (region === activeRegion ? ' active' : ''), region === 'All' ? 'All regions' : region);
+        button.type = 'button';
+        button.dataset.region = region;
+        button.addEventListener('click', () => {
+          activeRegion = region;
+          row.querySelectorAll('.region-btn').forEach(b => b.classList.toggle('active', b.dataset.region === region));
+          filterChannels();
+        });
+        row.appendChild(button);
       });
     }
 
-    function moveChannel(direction) {
-      const pool = visibleChannels.length ? visibleChannels : channels;
-      let index = pool.findIndex(channel => channel.id === currentId);
-      if (index < 0) index = 0;
-      index = (index + direction + pool.length) % pool.length;
-      tune(pool[index].id);
-    }
-
+    // ---------- wiring ----------
     $('prev-channel').addEventListener('click', () => moveChannel(-1));
     $('next-channel').addEventListener('click', () => moveChannel(1));
-    $('random-channel').addEventListener('click', () => {
-      const pool = visibleChannels.length ? visibleChannels : channels;
-      const choices = pool.filter(channel => channel.id !== currentId);
-      const target = choices.length ? choices[Math.floor(Math.random() * choices.length)] : pool[0];
-      if (target) tune(target.id);
-    });
-    $('search').addEventListener('input', event => {
-      query = event.target.value.toLowerCase().trim();
-      filterChannels();
-    });
-    document.querySelectorAll('.region-btn').forEach(button => {
-      button.addEventListener('click', () => {
-        activeRegion = button.dataset.region;
-        setActiveButtons('.region-btn', 'region', activeRegion);
-        filterChannels();
-      });
-    });
+    $('next-country').addEventListener('click', () => moveCountry(1));
+    $('random-channel').addEventListener('click', tuneSomewhere);
+    $('sound-toggle').addEventListener('click', toggleSound);
+    $('search').addEventListener('input', event => { query = event.target.value.toLowerCase().trim(); filterChannels(); });
     document.querySelectorAll('.dial-btn').forEach(button => {
       button.addEventListener('click', () => {
         activeDial = button.dataset.dial;
-        setActiveButtons('.dial-btn', 'dial', activeDial);
+        document.querySelectorAll('.dial-btn').forEach(b => b.classList.toggle('active', b === button));
         filterChannels();
       });
     });
     document.addEventListener('keydown', event => {
       if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') { event.preventDefault(); moveChannel(-1); }
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { event.preventDefault(); moveChannel(1); }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = event.key;
+      if (key === 'ArrowLeft') { event.preventDefault(); moveChannel(-1); }
+      else if (key === 'ArrowRight') { event.preventDefault(); moveChannel(1); }
+      else if (key === 'ArrowUp') { event.preventDefault(); moveCountry(-1); }
+      else if (key === 'ArrowDown') { event.preventDefault(); moveCountry(1); }
+      else if (key === 't' || key === 'T') tuneSomewhere();
+      else if (key === 'm' || key === 'M') toggleSound();
     });
 
-    $('channel-count').textContent = `${channels.length} CHANNELS IN THE GUIDE`;
-    tune(channels[0].id);
-    filterChannels();
-    updateClocks();
-    window.setInterval(updateClocks, 15000);
-    window.setInterval(() => { if (activeDial === 'evening' || activeDial === 'morning') filterChannels(); }, 60000);
+    init();
   </script>
 </body>
 </html>
