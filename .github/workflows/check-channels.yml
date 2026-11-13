@@ -1,0 +1,28 @@
+# Optional. Re-verifies channels.json once a week and on demand.
+# Needs no secrets. If YouTube refuses the runner's network the script
+# writes nothing and the job simply reports it.
+name: Check channels
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/check_channels.py --write
+      - name: Commit changes
+        run: |
+          if ! git diff --quiet channels.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add channels.json
+            git commit -m "Refresh channel verification"
+            git push
+          fi
