@@ -331,7 +331,7 @@
               </div>
               <div class="tune-reason" id="tune-reason" aria-live="polite"></div>
             </div>
-            <div class="player-hint"><a class="text-link" id="player-external-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open source ↗</a><br>Nothing plays until you switch on. Streams start muted unless Sound is on.</div>
+            <div class="player-hint"><a class="text-link" id="player-external-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Open source ↗</a><br>Nothing plays until you switch on. Your sound setting carries from channel to channel.</div>
           </div>
         </div>
 
@@ -414,6 +414,8 @@
     let query = '';
     let poweredOn = false;
     let soundOn = false;
+    let muteWatch = null;
+    let forcedMute = false;
     let osdTimeout = null;
     let tuneSeq = 0;
     let ytPlayer = null;
@@ -543,6 +545,7 @@
     }
 
     async function init() {
+      setSound(recall('elsewhereSound') === 'on', { quiet: true });
       updateClocks();
       let data;
       try {
@@ -585,6 +588,8 @@
       return modes;
     }
     function clearScreen() {
+      if (muteWatch) { clearInterval(muteWatch); muteWatch = null; }
+      forcedMute = false;
       if (ytPlayer && ytPlayer.destroy) { try { ytPlayer.destroy(); } catch (e) { /* already gone */ } }
       ytPlayer = null;
       const existing = $('screen').querySelector('iframe');
@@ -644,6 +649,7 @@
         try {
           ytPlayer = new window.YT.Player(frame, {
             events: {
+              onReady: (e) => { if (seq === tuneSeq) onPlayerReady(e.target, seq); },
               onError: () => { if (seq === tuneSeq) startEmbed(c, plan, index + 1, seq); },
               onStateChange: (e) => { if (seq === tuneSeq && e.data === 1) setState('ON AIR · YOUTUBE LIVE', true); }
             }
@@ -698,16 +704,45 @@
       if (osdTimeout) clearTimeout(osdTimeout);
       osdTimeout = setTimeout(() => banner.classList.remove('visible'), 2600);
     }
-    function toggleSound() {
-      soundOn = !soundOn;
+    // Sound is a standing preference: it carries across channel changes and
+    // visits. Unmuting with YouTube's own speaker icon counts too.
+    function setSound(on, options = {}) {
+      soundOn = !!on;
       const button = $('sound-toggle');
       button.textContent = soundOn ? 'Sound on' : 'Sound off';
       button.setAttribute('aria-pressed', String(soundOn));
+      if (!options.quiet) store('elsewhereSound', soundOn ? 'on' : 'off');
+    }
+    function toggleSound() {
+      setSound(!soundOn);
+      forcedMute = false;
       if (ytPlayer && ytPlayer.mute && ytPlayer.unMute) {
         try { soundOn ? ytPlayer.unMute() : ytPlayer.mute(); return; } catch (e) { /* fall through to reload */ }
       }
       const c = currentChannel();
       if (c && poweredOn && $('screen').querySelector('iframe')) renderPlayer(c);
+    }
+    function onPlayerReady(player, seq) {
+      if (soundOn) { try { player.unMute(); player.playVideo(); } catch (e) { /* ignore */ } }
+      // If the browser refuses to start with sound, start muted rather than
+      // leave a frozen player, and say why. The preference is kept.
+      setTimeout(() => {
+        if (seq !== tuneSeq || !soundOn) return;
+        try {
+          const state = player.getPlayerState();
+          if (state !== 1 && state !== 3) {
+            forcedMute = true; player.mute(); player.playVideo();
+            $('tune-reason').textContent = 'Your browser held back the sound. Click the player once to hear it.';
+          }
+        } catch (e) { /* ignore */ }
+      }, 2500);
+      muteWatch = setInterval(() => {
+        if (seq !== tuneSeq) return;
+        let muted;
+        try { muted = player.isMuted(); } catch (e) { return; }
+        if (forcedMute) { if (muted) return; forcedMute = false; $('tune-reason').textContent = ''; }
+        if (muted === soundOn) setSound(!muted);
+      }, 1000);
     }
 
     // ---------- details ----------
