@@ -54,9 +54,11 @@ To run the workflow by hand: Actions → *Check channels* → *Run workflow*.
 | `channelId`, `videoId`, `embed` | YouTube channel ID, last known live video ID, and embed mode: `video`, `channel`, `hls` (direct stream) or `external`. |
 | `hlsUrl` | For `hls` channels: a permanent stream address that plays on other sites. |
 | `hlsResolver` | For `hls` channels without a permanent address: the relay key (`rai-news-24`, `ct24`). Needs `relayBase` set at the top of the file. |
+| `hlsNeeds` | Country codes (`["NO"]`, `["FR", "DE"]`) for a stream that only plays from inside those countries. It is used only when *Local-connection channels* is switched on in the page footer (saved in that browser only); otherwise the channel falls back to its links. |
+| `localOnly` | `true` for a channel that has no other route, so it is hidden unless *Local-connection channels* is on. Elsewhere Lite always leaves these out. |
 | `breakingWallKey` | Key of the matching entry in the Breaking Wall feed, or `null`. |
 | `youtubeUrl`, `officialUrl` | Fallback links. |
-| `status` | `verified-live` (live and playable when checked), `off-air-at-check` (genuine source, not broadcasting at that moment), `external-unconfirmed` (broadcaster's own player; page responded, stream not tested). |
+| `status` | `verified-live` (live and playable when checked), `local-connection` (stream found, but blocked from the US when checked), `off-air-at-check` (genuine source, not broadcasting at that moment), `external-unconfirmed` (broadcaster's own player; page responded, stream not tested). |
 | `embedding` | `confirmed`, `blocked`, `unknown`, `direct stream` or `not applicable`. |
 | `geoRestriction` | Mostly `unknown`. Direct streams record what was found when tested from the US. |
 | `ads` | `unconfirmed` for commercial channels: many broadcasters replace ad breaks with a holding slate on YouTube. |

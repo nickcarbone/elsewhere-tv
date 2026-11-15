@@ -166,6 +166,7 @@
     .detail-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
     .text-link { color: var(--accent); text-decoration: none; font-size: 10px; letter-spacing: .05em; border-bottom: 1px solid rgba(217,184,120,.35); padding-bottom: 2px; transition: border-color .15s; }
     .text-link:hover { color: var(--text-main); border-color: var(--text-main); }
+    button.text-link { background: none; border: 0; border-bottom: 1px solid rgba(217,184,120,.35); padding: 0 0 2px; font-family: inherit; cursor: pointer; }
 
     /* Discovery & Guide Sidebar */
     .discovery-card { padding: 16px; margin-bottom: 16px; }
@@ -383,7 +384,7 @@
     </main>
 
     <footer class="footnote">
-      <div>ELSEWHERE TV is a curated remote control and rebroadcasts nothing. Streams stay hosted by their broadcasters and YouTube; live availability, embedding permissions and geographic access can change without notice. <span class="feed-status" id="feed-status"></span></div>
+      <div>ELSEWHERE TV is a curated remote control and rebroadcasts nothing. Streams stay hosted by their broadcasters and YouTube; live availability, embedding permissions and geographic access can change without notice. <span class="feed-status" id="feed-status"></span> <button class="text-link" id="local-toggle" type="button" aria-pressed="false" title="Adds channels whose streams only play with a connection in their own country">Local-connection channels: off</button></div>
       <div class="key-help">Keys: ← → channel · ↑ ↓ country · T tune in · M sound</div>
     </footer>
   </div>
@@ -428,6 +429,10 @@
     let hlsInstance = null;
     let hlsJsPromise = null;
     let relayBase = '';
+    // Channels whose streams only play from inside their own country. Off by
+    // default; the choice is kept in this browser only.
+    let localStreams = recall('elsewhereLocalStreams') === 'on';
+    let allChannels = [];
     const visitedCountries = new Set();
 
     // ---------- helpers ----------
@@ -451,7 +456,13 @@
     function currentChannel() { return channels.find(c => c.id === currentId) || null; }
     // A direct stream needs either a fixed URL, or a relay that fetches a
     // short-lived one. Without the relay those channels fall back to links.
-    function hasDirect(c) { return c.embed === 'hls' && !!(c.hlsUrl || (c.hlsResolver && relayBase)); }
+    function hasDirect(c) { return c.embed === 'hls' && (!c.hlsNeeds || localStreams) && !!(c.hlsUrl || (c.hlsResolver && relayBase)); }
+    function countryNames(codes) {
+      let names;
+      try { const dn = new Intl.DisplayNames(['en'], { type: 'region' }); names = codes.map(code => dn.of(code)); }
+      catch (e) { names = codes.slice(); }
+      return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : names[0];
+    }
     function isExternal(c) { return !hasDirect(c) && (c.embed === 'external' || c.embed === 'hls' || (!c.channelId && !c.videoId)); }
     function isNonNews(c) { return !NEWSY.has(c.genre); }
 
@@ -518,7 +529,7 @@
       if (!Array.isArray(feed)) return report;
       const byKey = new Map();
       feed.forEach(entry => { if (entry && entry.key) byKey.set(entry.key, entry); });
-      channels.forEach(c => {
+      allChannels.forEach(c => {
         if (!c.breakingWallKey) return;
         const entry = byKey.get(c.breakingWallKey);
         if (!entry) return;
@@ -569,9 +580,9 @@
         return;
       }
       relayBase = (!Array.isArray(data) && typeof data.relayBase === 'string') ? data.relayBase.replace(/\/+$/, '') : '';
-      channels = prepare(Array.isArray(data) ? data : data.channels || []);
-      const countries = new Set(channels.map(c => c.country)).size;
-      $('channel-count').textContent = `${channels.length} CHANNELS · ${countries} COUNTRIES`;
+      allChannels = prepare(Array.isArray(data) ? data : data.channels || []);
+      applyVisibility();
+      setLocalStreams(localStreams, { quiet: true });
       buildRegionButtons();
       const wanted = decodeURIComponent(location.hash.slice(1)) || recall('elsewhereLastChannel');
       const start = channels.find(c => c.id === wanted) || pickSomewhere() || channels[0];
@@ -644,6 +655,10 @@
     function showFallback(c) {
       clearScreen();
       setState('STREAM UNAVAILABLE HERE', false);
+      if (c.hlsNeeds && localStreams) {
+        showCard('This stream needs a local connection', `${c.name} only plays with a connection in ${countryNames(c.hlsNeeds)}. Connect there and change channel to try again, or use the broadcaster's own pages.`, linkActions(c));
+        return;
+      }
       showCard('This stream is not playing here', `${c.name} may be between broadcasts, blocked in your region, or closed to embedding. The broadcaster's own pages are the reliable route.`, linkActions(c));
     }
     function showStandby(c) {
@@ -881,7 +896,7 @@
       if (url) { link.href = url; link.hidden = false; }
       else { link.removeAttribute('href'); link.hidden = true; }
     }
-    const STATUS_TEXT = { 'verified-live': 'Live stream verified', 'off-air-at-check': 'Source verified; off air when checked', 'external-unconfirmed': 'External link; stream not confirmed' };
+    const STATUS_TEXT = { 'local-connection': 'Stream located; blocked from the US when checked', 'verified-live': 'Live stream verified', 'off-air-at-check': 'Source verified; off air when checked', 'external-unconfirmed': 'External link; stream not confirmed' };
     function renderDetails(c) {
       $('channel-kicker').textContent = `${c.flag}  ${c.country}  /  ${c.region}`;
       $('channel-name').textContent = c.name;
@@ -895,6 +910,7 @@
       const bits = [`${STATUS_TEXT[c.status] || c.status} ${c.lastVerified}`];
       if (c.embedding && c.embedding !== 'not applicable') bits.push(`embedding ${c.embedding}`);
       bits.push(`regional limits ${c.geoRestriction}`);
+      if (c.hlsNeeds) bits.push(localStreams ? `plays here with a connection in ${countryNames(c.hlsNeeds)}` : 'local-connection stream switched off');
       if (c.commercial) bits.push(c.ads === 'programming' ? 'the selling is the programme' : `ad breaks ${c.ads}`);
       if (c.feedState === 'live') bits.push('link kept current by Breaking Wall');
       if (c.feedState === 'dead') bits.push('Breaking Wall reports this stream down');
@@ -905,6 +921,28 @@
       setLink(source, c.youtubeUrl || c.officialUrl);
       source.textContent = c.youtubeUrl ? 'Open on YouTube ↗' : 'Open official player ↗';
       updateClocks();
+    }
+
+    // ---------- local-connection channels ----------
+    function applyVisibility() {
+      channels = allChannels.filter(c => !c.localOnly || localStreams);
+      const countries = new Set(channels.map(c => c.country)).size;
+      $('channel-count').textContent = `${channels.length} CHANNELS · ${countries} COUNTRIES`;
+    }
+    function setLocalStreams(on, options = {}) {
+      localStreams = !!on;
+      const button = $('local-toggle');
+      button.textContent = `Local-connection channels: ${localStreams ? 'on' : 'off'}`;
+      button.setAttribute('aria-pressed', String(localStreams));
+      if (!options.quiet) store('elsewhereLocalStreams', localStreams ? 'on' : 'off');
+    }
+    function toggleLocalStreams() {
+      setLocalStreams(!localStreams);
+      applyVisibility();
+      const c = currentChannel() || channels[0];
+      if (!c) return;
+      filterChannels();
+      selectChannel(c.id, { silent: true });
     }
 
     // ---------- tuning ----------
@@ -1053,6 +1091,7 @@
     $('next-country').addEventListener('click', () => moveCountry(1));
     $('random-channel').addEventListener('click', tuneSomewhere);
     $('sound-toggle').addEventListener('click', toggleSound);
+    $('local-toggle').addEventListener('click', toggleLocalStreams);
     $('search').addEventListener('input', event => { query = event.target.value.toLowerCase().trim(); filterChannels(); });
     document.querySelectorAll('.dial-btn').forEach(button => {
       button.addEventListener('click', () => {

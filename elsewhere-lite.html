@@ -254,7 +254,8 @@
   // Direct (HLS) streams play from a fixed URL, or from a short-lived one the
   // relay fetches. Without the relay those channels fall back to "Opens site".
   const HLS_JS_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
-  const hasDirect = (c) => c.embed === 'hls' && !!(c.hlsUrl || (c.hlsResolver && S.relayBase));
+  // Lite leaves out streams that only play from inside their own country.
+  const hasDirect = (c) => c.embed === 'hls' && !c.hlsNeeds && !!(c.hlsUrl || (c.hlsResolver && S.relayBase));
   const isExternal = (c) => !hasDirect(c) && (c.embed === 'external' || c.embed === 'hls' || (!c.channelId && !c.videoId));
   const matches = (e, list) => list.includes(e.key) || list.includes(e.keyCode);
   const videoIdOf = (url) => { const m = String(url || '').match(/(?:[?&]v=|youtu\.be\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{6,15})/); return m ? m[1] : null; };
@@ -347,7 +348,7 @@
       return;
     }
     S.relayBase = (!Array.isArray(data) && typeof data.relayBase === 'string') ? data.relayBase.replace(/\/+$/, '') : '';
-    S.channels = prepare(Array.isArray(data) ? data : data.channels || []);
+    S.channels = prepare((Array.isArray(data) ? data : data.channels || []).filter(c => !c.localOnly));
     S.tabs = TABS.map(t => ({ label: t.label, list: S.channels.filter(c => t.regions.includes(c.region)) })).filter(t => t.list.length);
     const last = S.channels.find(c => c.id === recall('elsewhereLiteLast'));
     if (last) placeCursor(last);
