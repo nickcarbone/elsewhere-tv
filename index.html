@@ -95,6 +95,7 @@
       background: radial-gradient(circle at center, #182018 0%, #050705 75%);
     }
     .screen iframe { position: absolute; inset: 0; border: 0; width: 100%; height: 100%; background: #030503; }
+    .screen video { position: absolute; inset: 0; width: 100%; height: 100%; background: #030503; object-fit: contain; }
     
     /* Transient OSD Banner */
     .osd-banner {
@@ -394,6 +395,10 @@
     // project's validated feed (matched on its stable `key`, never on name).
     const CATALOG_URL = './channels.json';
     const FEED_TIMEOUT_MS = 6000;
+    // Direct (HLS) streams: hls.js is loaded only when such a channel is tuned.
+    const HLS_JS_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
+    const DIRECT_START_TIMEOUT_MS = 20000;
+    const RELAY_TIMEOUT_MS = 8000;
     const REGION_ORDER = ['Europe', 'Middle East', 'Africa', 'Asia', 'Pacific', 'North America', 'Latin America'];
     const NEWSY = new Set(['news', 'business']);
     const DIAL_NOTES = {
@@ -420,6 +425,9 @@
     let tuneSeq = 0;
     let ytPlayer = null;
     let ytApiRequested = false;
+    let hlsInstance = null;
+    let hlsJsPromise = null;
+    let relayBase = '';
     const visitedCountries = new Set();
 
     // ---------- helpers ----------
@@ -441,7 +449,10 @@
       return m ? m[1] : null;
     }
     function currentChannel() { return channels.find(c => c.id === currentId) || null; }
-    function isExternal(c) { return c.embed === 'external' || (!c.channelId && !c.videoId); }
+    // A direct stream needs either a fixed URL, or a relay that fetches a
+    // short-lived one. Without the relay those channels fall back to links.
+    function hasDirect(c) { return c.embed === 'hls' && !!(c.hlsUrl || (c.hlsResolver && relayBase)); }
+    function isExternal(c) { return !hasDirect(c) && (c.embed === 'external' || c.embed === 'hls' || (!c.channelId && !c.videoId)); }
     function isNonNews(c) { return !NEWSY.has(c.genre); }
 
     function timeParts(timeZone) {
@@ -557,6 +568,7 @@
         $('channel-count').textContent = 'GUIDE UNAVAILABLE';
         return;
       }
+      relayBase = (!Array.isArray(data) && typeof data.relayBase === 'string') ? data.relayBase.replace(/\/+$/, '') : '';
       channels = prepare(Array.isArray(data) ? data : data.channels || []);
       const countries = new Set(channels.map(c => c.country)).size;
       $('channel-count').textContent = `${channels.length} CHANNELS · ${countries} COUNTRIES`;
@@ -582,6 +594,7 @@
     function embedPlan(c) {
       const hasChannel = /^UC[\w-]{22}$/.test(c.channelId || '');
       const modes = [];
+      if (hasDirect(c)) modes.push('direct');
       if (c.embed === 'channel' && hasChannel) modes.push('channel');
       if (c.videoId) modes.push('video');
       if (hasChannel && !modes.includes('channel')) modes.push('channel');
@@ -592,8 +605,12 @@
       forcedMute = false;
       if (ytPlayer && ytPlayer.destroy) { try { ytPlayer.destroy(); } catch (e) { /* already gone */ } }
       ytPlayer = null;
-      const existing = $('screen').querySelector('iframe');
-      if (existing) existing.remove();
+      if (hlsInstance) { try { hlsInstance.destroy(); } catch (e) { /* already gone */ } }
+      hlsInstance = null;
+      $('screen').querySelectorAll('iframe, video').forEach(node => {
+        if (node.tagName === 'VIDEO') { try { node.pause(); node.removeAttribute('src'); node.load(); } catch (e) { /* ignore */ } }
+        node.remove();
+      });
     }
     function showCard(title, copy, actions) {
       $('placeholder-title').textContent = title;
@@ -662,8 +679,103 @@
         window.onYouTubeIframeAPIReady = () => { if (typeof previous === 'function') previous(); bind(); };
       }
     }
+    function ensureHlsJs() {
+      if (window.Hls) return Promise.resolve(window.Hls);
+      if (!hlsJsPromise) {
+        hlsJsPromise = new Promise((resolve, reject) => {
+          const tag = document.createElement('script');
+          tag.src = HLS_JS_URL;
+          tag.async = true;
+          tag.onload = () => window.Hls ? resolve(window.Hls) : reject(new Error('hls.js missing'));
+          tag.onerror = () => { hlsJsPromise = null; reject(new Error('hls.js failed to load')); };
+          document.head.appendChild(tag);
+        });
+      }
+      return hlsJsPromise;
+    }
+    // A fixed URL plays as is. A resolver channel asks the relay for a fresh,
+    // short-lived address each time it is tuned.
+    async function resolveStream(c) {
+      if (c.hlsUrl) return c.hlsUrl;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), RELAY_TIMEOUT_MS);
+      try {
+        const res = await fetch(`${relayBase}/resolve/${encodeURIComponent(c.hlsResolver)}`, { cache: 'no-store', signal: controller.signal });
+        if (!res.ok) throw new Error(`relay HTTP ${res.status}`);
+        const body = await res.json();
+        if (!body || !/^https:\/\//.test(body.url || '')) throw new Error('relay returned no URL');
+        return body.url;
+      } finally { clearTimeout(timer); }
+    }
+    function startDirect(c, plan, index, seq) {
+      clearScreen();
+      const video = document.createElement('video');
+      video.title = `${c.name} live television`;
+      video.playsInline = true;
+      video.controls = true;
+      video.muted = !soundOn;
+      $('screen').insertBefore(video, $('osd-banner'));
+      $('screen-placeholder').hidden = true;
+      setState('TUNING · DIRECT STREAM', true);
+      let settled = false;
+      const fail = () => {
+        if (settled || seq !== tuneSeq) return;
+        settled = true; clearTimeout(guard);
+        startEmbed(c, plan, index + 1, seq);
+      };
+      const guard = setTimeout(() => { if (video.readyState < 3) fail(); }, DIRECT_START_TIMEOUT_MS);
+      video.addEventListener('playing', () => {
+        if (seq !== tuneSeq) return;
+        settled = true; clearTimeout(guard);
+        setState(`ON AIR · DIRECT FROM ${String(c.broadcaster || c.name).toUpperCase()}`, true);
+      });
+      // Sound stays a standing preference, as with YouTube: unmuting with the
+      // player's own control counts.
+      video.addEventListener('volumechange', () => {
+        if (seq !== tuneSeq) return;
+        if (forcedMute) { if (video.muted) return; forcedMute = false; $('tune-reason').textContent = ''; }
+        if (video.muted === soundOn) setSound(!video.muted);
+      });
+      const play = () => {
+        const attempt = video.play();
+        if (attempt && attempt.catch) attempt.catch(() => {
+          if (seq !== tuneSeq || video.muted) return;
+          forcedMute = true; video.muted = true;
+          video.play().catch(() => { /* the guard timer handles a stream that never starts */ });
+          $('tune-reason').textContent = 'Your browser held back the sound. Click the player once to hear it.';
+        });
+      };
+      (async () => {
+        let url;
+        try { url = await resolveStream(c); } catch (e) { fail(); return; }
+        if (seq !== tuneSeq) return;
+        let Hls = null;
+        try { Hls = await ensureHlsJs(); } catch (e) { /* fall back to native HLS where the browser has it */ }
+        if (seq !== tuneSeq) return;
+        if (Hls && Hls.isSupported()) {
+          const hls = new Hls({ backBufferLength: 30 });
+          hlsInstance = hls;
+          let recovered = false;
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            if (!data.fatal || seq !== tuneSeq) return;
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls.recoverMediaError(); return; }
+            fail();
+          });
+          hls.on(Hls.Events.MANIFEST_PARSED, play);
+          hls.loadSource(url);
+          hls.attachMedia(video);
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.addEventListener('error', fail, { once: true });
+          video.src = url;
+          play();
+        } else {
+          fail();
+        }
+      })();
+    }
     function startEmbed(c, plan, index, seq) {
       if (index >= plan.length) { showFallback(c); return; }
+      if (plan[index] === 'direct') { startDirect(c, plan, index, seq); return; }
       clearScreen();
       const frame = document.createElement('iframe');
       frame.title = `${c.name} live television`;
@@ -693,7 +805,7 @@
       if (!poweredOn) { showStandby(c); return; }
       const plan = embedPlan(c);
       if (!plan.length) { showFallback(c); return; }
-      ensureYtApi();
+      if (plan.some(m => m !== 'direct')) ensureYtApi();
       startEmbed(c, plan, 0, seq);
     }
     function triggerOsdBanner(c) {
@@ -716,6 +828,12 @@
     function toggleSound() {
       setSound(!soundOn);
       forcedMute = false;
+      const video = $('screen').querySelector('video');
+      if (video) {
+        video.muted = !soundOn;
+        if (soundOn) video.play().catch(() => { /* a click on the player will start it */ });
+        return;
+      }
       if (ytPlayer && ytPlayer.mute && ytPlayer.unMute) {
         try { soundOn ? ytPlayer.unMute() : ytPlayer.mute(); return; } catch (e) { /* fall through to reload */ }
       }
