@@ -26,7 +26,8 @@ YouTube live streams change their video ID whenever a broadcaster restarts a str
 
 1. **Breaking Wall feed.** At load, the page reads `https://nickcarbone.github.io/breaking-wall/news_sources.json`. Channels with a `breakingWallKey` take their current link from it, matched on the feed's stable `key` (never on name or channel ID alone). If the feed is unreachable the page uses the links saved in `channels.json` and says so in the footer.
 2. **Channel embeds.** Channels marked `"embed": "channel"` ask YouTube for the channel's current live broadcast, so a rotated video ID does not matter.
-3. **Fallback chain.** If an embed errors, the page tries the other embed method, then shows a card with links to YouTube and the broadcaster's site. It never leaves an empty player.
+3. **Direct streams.** Channels marked `"embed": "hls"` play the broadcaster's own HLS stream in a plain video player (hls.js, loaded only when needed). A fixed `hlsUrl` plays as is. A channel with `hlsResolver` instead asks the relay in [`relay/`](relay/README.md) for a fresh short-lived address; until `relayBase` is set in `channels.json`, those channels stay as links to the broadcaster's site.
+4. **Fallback chain.** If a direct stream or an embed errors, or a direct stream hasn't started after 20 seconds, the page tries the next method, then shows a card with links to YouTube and the broadcaster's site. It never leaves an empty player.
 
 ## The checker
 
@@ -50,12 +51,16 @@ To run the workflow by hand: Actions → *Check channels* → *Run workflow*.
 | `category` | Short human description shown in the guide. |
 | `service` | `domestic` or `international`. Domestic channels list first; *Own-language only* hides international ones. |
 | `broadcaster`, `broadcasterType`, `commercial` | Ownership. `commercial` drives the *Commercial television* dial. |
-| `channelId`, `videoId`, `embed` | YouTube channel ID, last known live video ID, and embed mode: `video`, `channel` or `external`. |
+| `channelId`, `videoId`, `embed` | YouTube channel ID, last known live video ID, and embed mode: `video`, `channel`, `hls` (direct stream) or `external`. |
+| `hlsUrl` | For `hls` channels: a permanent stream address that plays on other sites. |
+| `hlsResolver` | For `hls` channels without a permanent address: the relay key (`rai-news-24`, `ct24`). Needs `relayBase` set at the top of the file. |
+| `hlsNeeds` | Country codes (`["NO"]`, `["FR", "DE"]`) for a stream that only plays from inside those countries. It is used only when *Local-connection channels* is switched on in the page footer (saved in that browser only); otherwise the channel falls back to its links. |
+| `localOnly` | `true` for a channel that has no other route, so it is hidden unless *Local-connection channels* is on. Elsewhere Lite always leaves these out. |
 | `breakingWallKey` | Key of the matching entry in the Breaking Wall feed, or `null`. |
 | `youtubeUrl`, `officialUrl` | Fallback links. |
-| `status` | `verified-live` (live and playable when checked), `off-air-at-check` (genuine source, not broadcasting at that moment), `external-unconfirmed` (broadcaster's own player; page responded, stream not tested). |
-| `embedding` | `confirmed`, `blocked`, `unknown` or `not applicable`. |
-| `geoRestriction` | `unknown` throughout: checks ran from one location only. |
+| `status` | `verified-live` (live and playable when checked), `local-connection` (stream found, but blocked from the US when checked), `off-air-at-check` (genuine source, not broadcasting at that moment), `external-unconfirmed` (broadcaster's own player; page responded, stream not tested). |
+| `embedding` | `confirmed`, `blocked`, `unknown`, `direct stream` or `not applicable`. |
+| `geoRestriction` | Mostly `unknown`. Direct streams record what was found when tested from the US. |
 | `ads` | `unconfirmed` for commercial channels: many broadcasters replace ad breaks with a holding slate on YouTube. |
 | `availabilityNote` | Shown in the channel panel when a channel only streams at certain times. |
 | `lastVerified` | Date of the last check. |

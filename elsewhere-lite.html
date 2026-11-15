@@ -122,6 +122,7 @@
   #player { background: #000; }
   #screen { position: absolute; inset: 0; }
   #screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+  #screen video { position: absolute; inset: 0; width: 100%; height: 100%; background: #000; object-fit: contain; pointer-events: none; }
   .tuning { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at center, #111726, #000 70%); transition: opacity .6s; }
   .tuning.gone { opacity: 0; pointer-events: none; }
   .tuning .t-eyebrow { font: 500 0.9rem/1 var(--mono); letter-spacing: 0.32em; color: var(--gold); text-transform: uppercase; }
@@ -250,7 +251,12 @@
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } };
   const recall = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
-  const isExternal = (c) => c.embed === 'external' || (!c.channelId && !c.videoId);
+  // Direct (HLS) streams play from a fixed URL, or from a short-lived one the
+  // relay fetches. Without the relay those channels fall back to "Opens site".
+  const HLS_JS_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
+  // Lite leaves out streams that only play from inside their own country.
+  const hasDirect = (c) => c.embed === 'hls' && !c.hlsNeeds && !!(c.hlsUrl || (c.hlsResolver && S.relayBase));
+  const isExternal = (c) => !hasDirect(c) && (c.embed === 'external' || c.embed === 'hls' || (!c.channelId && !c.videoId));
   const matches = (e, list) => list.includes(e.key) || list.includes(e.keyCode);
   const videoIdOf = (url) => { const m = String(url || '').match(/(?:[?&]v=|youtu\.be\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{6,15})/); return m ? m[1] : null; };
   const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return 'the broadcaster’s site'; } };
@@ -341,7 +347,8 @@
       $('loading').textContent = 'The channel guide could not be loaded';
       return;
     }
-    S.channels = prepare(Array.isArray(data) ? data : data.channels || []);
+    S.relayBase = (!Array.isArray(data) && typeof data.relayBase === 'string') ? data.relayBase.replace(/\/+$/, '') : '';
+    S.channels = prepare((Array.isArray(data) ? data : data.channels || []).filter(c => !c.localOnly));
     S.tabs = TABS.map(t => ({ label: t.label, list: S.channels.filter(c => t.regions.includes(c.region)) })).filter(t => t.list.length);
     const last = S.channels.find(c => c.id === recall('elsewhereLiteLast'));
     if (last) placeCursor(last);
@@ -561,6 +568,13 @@
   function toggleSound() {
     setSound(S.forcedMute ? true : !S.soundOn);
     S.forcedMute = false;
+    const video = $('screen').querySelector('video');
+    if (video) {
+      video.muted = !S.soundOn;
+      if (S.soundOn) video.play().catch(() => { /* stays muted until the next tune */ });
+      $('l-note').textContent = '';
+      return;
+    }
     if (S.yt && S.yt.mute) {
       try { S.soundOn ? (S.yt.unMute(), S.yt.setVolume && S.yt.setVolume(100)) : S.yt.mute(); $('l-note').textContent = ''; return; } catch (e) { /* fall back to reload */ }
     }
@@ -645,6 +659,7 @@
   function embedPlan(c) {
     const hasChannel = /^UC[\w-]{22}$/.test(c.channelId || '');
     const modes = [];
+    if (hasDirect(c)) modes.push('direct');
     if (c.embed === 'channel' && hasChannel) modes.push('channel');
     if (c.videoId) modes.push('video');
     if (hasChannel && !modes.includes('channel')) modes.push('channel');
@@ -655,6 +670,10 @@
     clearInterval(S.muteWatch); S.muteWatch = null;
     if (S.yt && S.yt.destroy) { try { S.yt.destroy(); } catch (e) { /* already gone */ } }
     S.yt = null;
+    if (S.hls) { try { S.hls.destroy(); } catch (e) { /* already gone */ } }
+    S.hls = null;
+    const video = $('screen').querySelector('video');
+    if (video) { try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) { /* ignore */ } }
     $('screen').replaceChildren();
   }
   function stopPlayer() { S.seq++; clearTimeout(S.tuneTimer); clearScreen(); hideBanner(); }
@@ -664,6 +683,7 @@
   function startEmbed(c, plan, index, seq) {
     if (seq !== S.seq) return;
     if (index >= plan.length) { showUnavailable(c); return; }
+    if (plan[index] === 'direct') { startDirect(c, plan, index, seq); return; }
     clearScreen();
     const frame = document.createElement('iframe');
     frame.title = `${c.name} live`;
@@ -678,6 +698,74 @@
     setTimeout(() => { if (seq === S.seq && !$('tuning').classList.contains('gone')) reveal(c); }, 9000);
   }
 
+  function ensureHlsJs() {
+    if (window.Hls) return Promise.resolve(window.Hls);
+    if (!S.hlsJsPromise) {
+      S.hlsJsPromise = new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = HLS_JS_URL; tag.async = true;
+        tag.onload = () => window.Hls ? resolve(window.Hls) : reject(new Error('hls.js missing'));
+        tag.onerror = () => { S.hlsJsPromise = null; reject(new Error('hls.js failed to load')); };
+        document.head.appendChild(tag);
+      });
+    }
+    return S.hlsJsPromise;
+  }
+  async function resolveStream(c) {
+    if (c.hlsUrl) return c.hlsUrl;
+    const body = await fetchJson(`${S.relayBase}/resolve/${encodeURIComponent(c.hlsResolver)}`, 8000);
+    if (!body || !/^https:\/\//.test(body.url || '')) throw new Error('relay returned no URL');
+    return body.url;
+  }
+  function startDirect(c, plan, index, seq) {
+    clearScreen();
+    const video = document.createElement('video');
+    video.playsInline = true; video.tabIndex = -1; video.muted = !S.soundOn;
+    $('screen').appendChild(video);
+    let settled = false;
+    const fail = () => {
+      if (settled || seq !== S.seq) return;
+      settled = true; clearTimeout(guard);
+      startEmbed(c, plan, index + 1, seq);
+    };
+    const guard = setTimeout(() => { if (video.readyState < 3) fail(); }, 20000);
+    video.addEventListener('playing', () => { if (seq !== S.seq) return; settled = true; clearTimeout(guard); reveal(c); });
+    const play = () => {
+      const attempt = video.play();
+      if (attempt && attempt.catch) attempt.catch(() => {
+        if (seq !== S.seq || video.muted) return;
+        S.forcedMute = true; video.muted = true;
+        video.play().catch(() => { /* the guard handles a stream that never starts */ });
+        $('l-note').textContent = 'The browser held back the sound. Press OK, then choose Sound on.';
+        openControls();
+      });
+    };
+    (async () => {
+      let url;
+      try { url = await resolveStream(c); } catch (e) { fail(); return; }
+      if (seq !== S.seq) return;
+      let Hls = null;
+      try { Hls = await ensureHlsJs(); } catch (e) { /* native HLS may still work */ }
+      if (seq !== S.seq) return;
+      if (Hls && Hls.isSupported()) {
+        const hls = new Hls({ backBufferLength: 30 });
+        S.hls = hls;
+        let recovered = false;
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (!data.fatal || seq !== S.seq) return;
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls.recoverMediaError(); return; }
+          fail();
+        });
+        hls.on(Hls.Events.MANIFEST_PARSED, play);
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.addEventListener('error', fail, { once: true });
+        video.src = url;
+        play();
+      } else fail();
+    })();
+  }
   function ensureYtApi() {
     if (S.ytRequested || (window.YT && window.YT.Player)) return;
     S.ytRequested = true;
