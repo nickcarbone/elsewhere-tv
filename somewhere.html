@@ -66,7 +66,10 @@
     .stage { padding-top: 22px; }
     .screen-wrap { width: min(100%, calc((100vh - 330px) * 16 / 9)); min-width: min(100%, 520px); margin: 0 auto; }
     .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line-strong); overflow: hidden; }
-    .screen iframe, .screen video, .screen img.still { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+    .screen video, .screen img.still { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+    /* YouTube draws its overlays at fixed pixel sizes. Rendering the player at a
+       fixed 1600×900 and scaling it keeps them in the same place at any screen size. */
+    .screen iframe { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; border: 0; display: block; transform-origin: 0 0; transform: scale(var(--k, 1)); }
     .screen img.still { object-fit: cover; }
     .screen video { object-fit: contain; background: #000; }
     /* Blocks every click and hover, so YouTube never shows its title bar or a link out. */
@@ -87,6 +90,11 @@
     .mask.br { right: 0; bottom: 0; width: 21%; height: 17%; }
     .mask.bl { left: 0; bottom: 0; width: 17%; height: 14%; }
     .mask.bottom { left: 0; right: 0; bottom: 0; height: 25%; display: none; }
+    /* YouTube's information panel ("Funded in whole or in part by the … government",
+       "… is a public broadcast service"), shown under the title bar on state-funded
+       and public channels. Only YouTube streams get it. */
+    .mask.panel { left: 0; top: 13%; width: 45%; height: 24%; display: none; }
+    .masks.yt .mask.panel { display: block; }
     .masks.hard .mask.bottom { display: block; }
     .masks.hard .mask.tl, .masks.hard .mask.tr { height: 15%; width: 30%; }
     .masks.off .mask { display: none; }
@@ -209,7 +217,7 @@
         <div class="screen" id="screen">
           <div class="masks" id="masks" aria-hidden="true">
             <div class="mask top"></div><div class="mask tl"></div><div class="mask tr"></div>
-            <div class="mask bl"></div><div class="mask br"></div><div class="mask bottom"></div>
+            <div class="mask bl"></div><div class="mask br"></div><div class="mask bottom"></div><div class="mask panel"></div>
           </div>
           <div class="shield" aria-hidden="true"></div>
           <div class="curtain" id="curtain">
@@ -467,6 +475,7 @@
     ytPlayer = null;
     if (hlsInstance) { try { hlsInstance.destroy(); } catch (e) { /* gone */ } }
     hlsInstance = null;
+    $('masks').classList.remove('yt');
     $('screen').querySelectorAll('iframe, video, img.still').forEach(node => {
       if (node.tagName === 'VIDEO') { try { node.pause(); node.removeAttribute('src'); node.load(); } catch (e) { /* ignore */ } }
       node.remove();
@@ -551,6 +560,7 @@
     frame.referrerPolicy = 'strict-origin-when-cross-origin';
     frame.src = embedSrc(c, plan[index]);
     insertMedia(frame);
+    $('masks').classList.add('yt');
     ensureYtApi();
     const bind = () => {
       if (s !== seq || !frame.isConnected || !(window.YT && window.YT.Player)) return;
@@ -844,6 +854,10 @@
       buttons: [{ label: 'Switch on', primary: true, onClick: () => nextRound(false) }]
     });
   }
+  function fitPlayer() { const w = $('screen').clientWidth; if (w) $('screen').style.setProperty('--k', String(w / 1600)); }
+  if (window.ResizeObserver) new ResizeObserver(fitPlayer).observe($('screen'));
+  window.addEventListener('resize', fitPlayer);
+  fitPlayer();
   init();
   </script>
 </body>
